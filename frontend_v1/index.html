@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sabbalens — Scheduler</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo" aria-label="Sabbalens home">
+        <svg class="logo-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M6 6h4v4H6v4H4V10H4V6h2zm20 0h4v4h-4v4h-2V10h-2V6h2zm-12 8v4H6v4H4v-4H4v-4h2zm16 0v4h-4v4h-2v-4h-2v-4h2z" fill="currentColor"/>
+          <circle cx="16" cy="16" r="2" fill="currentColor"/>
+        </svg>
+        <span class="logo-text">SABBALENS</span>
+      </div>
+      <div class="divider" aria-hidden="true"></div>
+      <nav class="nav-tabs" role="tablist" aria-label="Main navigation">
+        <button role="tab" aria-selected="true" class="tab active">Scheduler</button>
+        <button role="tab" aria-selected="false" class="tab">Published</button>
+        <button role="tab" aria-selected="false" class="tab">Settings</button>
+      </nav>
+    </div>
+    <div class="header-right">
+      <button id="import-btn" class="btn btn-secondary" type="button">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+        <span>Import Photo</span>
+      </button>
+      <div class="avatar" aria-label="User profile"></div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section class="photo-header" aria-labelledby="photo-title">
+      <div class="photo-meta">
+        <div class="photo-location">
+          <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+          <span id="photo-location-name">Loading…</span>
+        </div>
+        <div class="photo-exif" id="photo-exif">
+          <span class="material-symbols-outlined" aria-hidden="true">camera</span>
+          <span id="photo-camera">—</span>
+          <span class="divider-sm" aria-hidden="true"></span>
+          <span id="photo-lens">—</span>
+          <span class="divider-sm" aria-hidden="true"></span>
+          <span id="photo-settings">—</span>
+        </div>
+        <div class="photo-gps" id="photo-gps">
+          <span class="material-symbols-outlined" aria-hidden="true">gps_fixed</span>
+          <span id="photo-coords">—</span>
+        </div>
+      </div>
+      <div class="photo-preview" id="photo-preview" aria-label="Photo preview">
+        <img id="photo-img" src="" alt="" />
+      </div>
+    </section>
+
+    <section class="schedule-panel" aria-labelledby="schedule-title">
+      <h2 id="schedule-title" class="section-title">Schedule Post</h2>
+      
+      <div class="destinations" role="group" aria-label="Publish destinations">
+        <label class="destination-chip">
+          <input type="checkbox" name="destination" value="instagram" checked />
+          <span class="material-symbols-outlined" aria-hidden="true">camera</span>
+          <span>Instagram</span>
+        </label>
+        <label class="destination-chip">
+          <input type="checkbox" name="destination" value="threads" />
+          <span class="material-symbols-outlined" aria-hidden="true">forum</span>
+          <span>Threads</span>
+        </label>
+        <label class="destination-chip">
+          <input type="checkbox" name="destination" value="bluesky" />
+          <span class="material-symbols-outlined" aria-hidden="true">cloud</span>
+          <span>Bluesky</span>
+        </label>
+      </div>
+
+      <div class="caption-field">
+        <label for="caption" class="field-label">Caption</label>
+        <textarea id="caption" rows="4" placeholder="Tell the story…" aria-describedby="caption-hint"></textarea>
+        <div class="field-hint" id="caption-hint">
+          <span id="char-count">0</span> / 2200
+          <div class="hashtag-suggestions" id="hashtag-suggestions" aria-label="Hashtag suggestions"></div>
+        </div>
+      </div>
+
+      <div class="schedule-row">
+        <div class="schedule-option">
+          <label for="schedule-date" class="field-label">Date</label>
+          <input type="date" id="schedule-date" />
+        </div>
+        <div class="schedule-option">
+          <label for="schedule-time" class="field-label">Time (UTC)</label>
+          <input type="time" id="schedule-time" step="60" />
+        </div>
+      </div>
+
+      <p class="schedule-hint">Will automatically publish at the scheduled time across selected networks.</p>
+
+      <div class="schedule-actions">
+        <button id="schedule-btn" class="btn btn-secondary" type="button">Schedule Post</button>
+        <button id="publish-now-btn" class="btn btn-primary" type="button">Publish Immediately</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Sabbalens v1.0 — Every frame, placed.</p>
+  </footer>
+
+  <dialog id="import-dialog" class="import-dialog">
+    <form method="dialog">
+      <h3>Import Photo</h3>
+      <input type="file" id="import-file" accept="image/*" required capture="environment" />
+      <div class="dialog-actions">
+        <button value="cancel" class="btn btn-secondary">Cancel</button>
+        <button value="import" class="btn btn-primary" id="import-submit">Import</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
