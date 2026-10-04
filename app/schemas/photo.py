@@ -10,6 +10,13 @@ class PhotoBase(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     location_name: Optional[str] = None
+    camera: Optional[str] = None
+    lens: Optional[str] = None
+    focal_length: Optional[str] = None
+    exposure_time: Optional[str] = None
+    aperture: Optional[str] = None
+    iso: Optional[int] = None
+    destinations: Optional[str] = None
     caption: Optional[str] = None
 
 
@@ -21,6 +28,8 @@ class PhotoUpdate(BaseModel):
     caption: Optional[str] = None
     status: Optional[PhotoStatus] = None
     scheduled_at: Optional[datetime] = None
+    published_at: Optional[datetime] = None
+    destinations: Optional[str] = None
 
 
 class PhotoRead(PhotoBase):

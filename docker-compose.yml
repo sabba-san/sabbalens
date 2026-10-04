@@ -1,0 +1,15 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////data/sabbalens.db
+      UPLOAD_DIR: /data/uploads
+      DEBUG: "false"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

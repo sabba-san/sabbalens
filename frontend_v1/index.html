@@ -3,93 +3,159 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Sabbalens — Geo-aware photo scheduling pipeline. Every frame, placed." />
   <title>Sabbalens — Scheduler</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+
+  <!-- ============================================================
+       HEADER
+       ============================================================ -->
   <header class="app-header">
     <div class="header-left">
-      <div class="logo" aria-label="Sabbalens home">
+      <a href="/" class="logo" aria-label="Sabbalens home">
         <svg class="logo-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
           <path d="M6 6h4v4H6v4H4V10H4V6h2zm20 0h4v4h-4v4h-2V10h-2V6h2zm-12 8v4H6v4H4v-4H4v-4h2zm16 0v4h-4v4h-2v-4h-2v-4h2z" fill="currentColor"/>
           <circle cx="16" cy="16" r="2" fill="currentColor"/>
         </svg>
-        <span class="logo-text">SABBALENS</span>
-      </div>
+        <span class="logo-text">Sabbalens</span>
+      </a>
       <div class="divider" aria-hidden="true"></div>
       <nav class="nav-tabs" role="tablist" aria-label="Main navigation">
-        <button role="tab" aria-selected="true" class="tab active">Scheduler</button>
-        <button role="tab" aria-selected="false" class="tab">Published</button>
-        <button role="tab" aria-selected="false" class="tab">Settings</button>
+        <button role="tab" aria-selected="true" class="tab active" id="tab-scheduler" data-view="scheduler" aria-controls="view-scheduler">Scheduler</button>
+        <button role="tab" aria-selected="false" class="tab" id="tab-library" data-view="library" aria-controls="view-library">Library</button>
+        <button role="tab" aria-selected="false" class="tab" id="tab-settings" data-view="settings" aria-controls="view-settings">Settings</button>
       </nav>
     </div>
     <div class="header-right">
-      <button id="import-btn" class="btn btn-secondary" type="button">
-        <span class="material-symbols-outlined" aria-hidden="true">add</span>
-        <span>Import Photo</span>
+      <button id="import-btn" class="btn btn-secondary" type="button" aria-label="Import a photo">
+        <span class="material-symbols-outlined" aria-hidden="true">add_photo_alternate</span>
+        <span>Import</span>
       </button>
       <div class="avatar" aria-label="User profile"></div>
     </div>
   </header>
 
+
+  <!-- ============================================================
+       MAIN
+       ============================================================ -->
   <main class="app-main">
-    <section class="photo-header" aria-labelledby="photo-title">
-      <div class="photo-meta">
-        <div class="photo-location">
-          <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
-          <span id="photo-location-name">Loading…</span>
-        </div>
-        <div class="photo-exif" id="photo-exif">
-          <span class="material-symbols-outlined" aria-hidden="true">camera</span>
-          <span id="photo-camera">—</span>
-          <span class="divider-sm" aria-hidden="true"></span>
-          <span id="photo-lens">—</span>
-          <span class="divider-sm" aria-hidden="true"></span>
-          <span id="photo-settings">—</span>
-        </div>
-        <div class="photo-gps" id="photo-gps">
-          <span class="material-symbols-outlined" aria-hidden="true">gps_fixed</span>
-          <span id="photo-coords">—</span>
-        </div>
+    <h1 class="visually-hidden">Sabbalens Scheduler</h1>
+
+    <!-- ==========================================================
+         VIEW: SCHEDULER
+         ========================================================== -->
+    <div class="view" id="view-scheduler" role="tabpanel" aria-labelledby="tab-scheduler">
+
+    <!-- --- Photo Header: Preview + Metadata ---------------------- -->
+    <section class="photo-header" aria-label="Photo details">
+
+      <!-- Photo Preview / Dropzone -->
+      <div class="photo-preview photo-preview--empty" id="photo-preview" 
+           role="img" aria-label="Photo preview" tabindex="0">
+        <img id="photo-img" src="" alt="" style="display:none" />
+        <span class="material-symbols-outlined" aria-hidden="true">add_a_photo</span>
+        <span>Drop a photo or click Import</span>
       </div>
-      <div class="photo-preview" id="photo-preview" aria-label="Photo preview">
-        <img id="photo-img" src="" alt="" />
+
+      <!-- Metadata Sidebar -->
+      <div class="photo-meta" id="photo-meta">
+        <div class="meta-section">
+          <span class="meta-section__label">Location</span>
+          <div class="meta-row">
+            <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+            <span class="meta-section__value" id="photo-location-name">—</span>
+          </div>
+        </div>
+
+        <div class="meta-divider"></div>
+
+        <div class="meta-section">
+          <span class="meta-section__label">Camera</span>
+          <div class="exif-grid">
+            <div class="meta-section">
+              <span class="meta-section__label" style="font-size:10px">Body</span>
+              <span class="meta-section__value--mono" id="photo-camera">—</span>
+            </div>
+            <div class="meta-section">
+              <span class="meta-section__label" style="font-size:10px">Lens</span>
+              <span class="meta-section__value--mono" id="photo-lens">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="meta-divider"></div>
+
+        <div class="meta-section">
+          <span class="meta-section__label">Exposure</span>
+          <span class="meta-section__value--mono" id="photo-settings">—</span>
+        </div>
+
+        <div class="meta-divider"></div>
+
+        <div class="meta-section">
+          <span class="meta-section__label">GPS</span>
+          <div class="meta-row">
+            <span class="material-symbols-outlined" aria-hidden="true">gps_fixed</span>
+            <span class="meta-section__value--mono" id="photo-coords">—</span>
+          </div>
+        </div>
+
+        <div class="meta-divider"></div>
+
+        <div class="meta-section">
+          <span class="meta-section__label">Status</span>
+          <span class="status-badge status-badge--draft" id="photo-status">draft</span>
+        </div>
       </div>
     </section>
 
+
+    <!-- --- Schedule Panel ---------------------------------------- -->
     <section class="schedule-panel" aria-labelledby="schedule-title">
       <h2 id="schedule-title" class="section-title">Schedule Post</h2>
-      
+
+      <!-- Destinations -->
       <div class="destinations" role="group" aria-label="Publish destinations">
         <label class="destination-chip">
           <input type="checkbox" name="destination" value="instagram" checked />
-          <span class="material-symbols-outlined" aria-hidden="true">camera</span>
+          <span class="material-symbols-outlined" aria-hidden="true">photo_camera</span>
           <span>Instagram</span>
+          <span class="material-symbols-outlined chip-check" aria-hidden="true">check_circle</span>
         </label>
         <label class="destination-chip">
           <input type="checkbox" name="destination" value="threads" />
           <span class="material-symbols-outlined" aria-hidden="true">forum</span>
           <span>Threads</span>
+          <span class="material-symbols-outlined chip-check" aria-hidden="true">check_circle</span>
         </label>
         <label class="destination-chip">
           <input type="checkbox" name="destination" value="bluesky" />
           <span class="material-symbols-outlined" aria-hidden="true">cloud</span>
           <span>Bluesky</span>
+          <span class="material-symbols-outlined chip-check" aria-hidden="true">check_circle</span>
         </label>
       </div>
 
+      <!-- Caption -->
       <div class="caption-field">
         <label for="caption" class="field-label">Caption</label>
-        <textarea id="caption" rows="4" placeholder="Tell the story…" aria-describedby="caption-hint"></textarea>
+        <textarea id="caption" rows="5" placeholder="Tell the story…" aria-describedby="caption-hint"></textarea>
         <div class="field-hint" id="caption-hint">
-          <span id="char-count">0</span> / 2200
+          <span><span id="char-count">0</span> / 2200</span>
           <div class="hashtag-suggestions" id="hashtag-suggestions" aria-label="Hashtag suggestions"></div>
         </div>
       </div>
 
+      <!-- Date / Time -->
       <div class="schedule-row">
         <div class="schedule-option">
           <label for="schedule-date" class="field-label">Date</label>
@@ -101,29 +167,120 @@
         </div>
       </div>
 
-      <p class="schedule-hint">Will automatically publish at the scheduled time across selected networks.</p>
+      <p class="schedule-hint">Automatically publishes at the scheduled time across selected networks.</p>
 
+      <!-- Actions -->
       <div class="schedule-actions">
-        <button id="schedule-btn" class="btn btn-secondary" type="button">Schedule Post</button>
-        <button id="publish-now-btn" class="btn btn-primary" type="button">Publish Immediately</button>
+        <button id="schedule-btn" class="btn btn-secondary" type="button">
+          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+          Schedule Post
+        </button>
+        <button id="publish-now-btn" class="btn btn-primary" type="button">
+          <span class="material-symbols-outlined" aria-hidden="true">send</span>
+          Publish Now
+        </button>
       </div>
+    </section>
+    </div>
+
+
+    <!-- ==========================================================
+         VIEW: LIBRARY — every uploaded photo and its status
+         ========================================================== -->
+    <section class="view" id="view-library" role="tabpanel" aria-labelledby="tab-library" hidden>
+      <div class="view-header">
+        <div>
+          <h2 class="section-title">Library</h2>
+          <p class="view-subtitle" id="library-summary">Loading…</p>
+        </div>
+        <button id="library-refresh" class="btn btn-secondary" type="button" aria-label="Refresh library">
+          <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      <div class="filter-chips" role="group" aria-label="Filter by status" id="library-filters">
+        <button type="button" class="filter-chip active" data-status="all" id="filter-all">All <span class="filter-chip__count" data-count="all">0</span></button>
+        <button type="button" class="filter-chip" data-status="draft" id="filter-draft">Draft <span class="filter-chip__count" data-count="draft">0</span></button>
+        <button type="button" class="filter-chip" data-status="scheduled" id="filter-scheduled">Scheduled <span class="filter-chip__count" data-count="scheduled">0</span></button>
+        <button type="button" class="filter-chip" data-status="published" id="filter-published">Published <span class="filter-chip__count" data-count="published">0</span></button>
+        <button type="button" class="filter-chip" data-status="failed" id="filter-failed">Failed <span class="filter-chip__count" data-count="failed">0</span></button>
+      </div>
+
+      <div class="photo-grid" id="photo-grid" aria-live="polite"></div>
+
+      <div class="empty-state" id="library-empty" hidden>
+        <span class="material-symbols-outlined" aria-hidden="true">photo_library</span>
+        <p id="library-empty-text">No photos yet.</p>
+        <button type="button" class="btn btn-primary" id="library-import-btn">
+          <span class="material-symbols-outlined" aria-hidden="true">add_photo_alternate</span>
+          Import a photo
+        </button>
+      </div>
+    </section>
+
+
+    <!-- ==========================================================
+         VIEW: SETTINGS — system status
+         ========================================================== -->
+    <section class="view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <div class="view-header">
+        <div>
+          <h2 class="section-title">Settings</h2>
+          <p class="view-subtitle">System status for this Sabbalens server.</p>
+        </div>
+      </div>
+
+      <dl class="settings-list">
+        <div class="settings-row">
+          <dt>API status</dt>
+          <dd><span class="status-badge status-badge--draft" id="settings-api">checking…</span></dd>
+        </div>
+        <div class="settings-row">
+          <dt>Photos stored</dt>
+          <dd class="mono" id="settings-count">—</dd>
+        </div>
+        <div class="settings-row">
+          <dt>Auto-publishing to social networks</dt>
+          <dd><span class="status-badge status-badge--failed">not connected</span></dd>
+        </div>
+        <div class="settings-row">
+          <dt>API docs</dt>
+          <dd><a class="text-link" href="/docs" target="_blank" rel="noopener">/docs</a></dd>
+        </div>
+      </dl>
     </section>
   </main>
 
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
   <footer class="app-footer">
-    <p>Sabbalens v1.0 — Every frame, placed.</p>
+    Sabbalens v1.0 — Every frame, placed.
   </footer>
 
+
+  <!-- ============================================================
+       IMPORT DIALOG
+       ============================================================ -->
   <dialog id="import-dialog" class="import-dialog">
     <form method="dialog">
       <h3>Import Photo</h3>
-      <input type="file" id="import-file" accept="image/*" required capture="environment" />
+      <input type="file" id="import-file" accept="image/*" required />
       <div class="dialog-actions">
-        <button value="cancel" class="btn btn-secondary">Cancel</button>
-        <button value="import" class="btn btn-primary" id="import-submit">Import</button>
+        <button value="cancel" class="btn btn-secondary" type="button" id="import-cancel">Cancel</button>
+        <button value="import" class="btn btn-primary" id="import-submit" type="button">Import</button>
       </div>
     </form>
   </dialog>
+
+
+  <!-- ============================================================
+       TOAST CONTAINER
+       ============================================================ -->
+  <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
 
   <script src="app.js"></script>
 </body>

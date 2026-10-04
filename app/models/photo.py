@@ -21,6 +21,13 @@ class Photo(Base):
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     location_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    camera: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lens: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    focal_length: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    exposure_time: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    aperture: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    iso: Mapped[int | None] = mapped_column(nullable=True)
+    destinations: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[PhotoStatus] = mapped_column(
         Enum(PhotoStatus), default=PhotoStatus.draft, index=True
     )

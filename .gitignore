@@ -5,6 +5,7 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 env/
 ENV/
 
@@ -26,6 +27,7 @@ Thumbs.db
 # Project specific
 sabbalens.db
 uploads/
+data/
 *.log
 server.log
 

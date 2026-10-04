@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.api.deps import get_database, get_storage, validate_image_file
-from app.services.exif import extract_gps
+from app.services.exif import extract_exif_data
 from app.services.geocoding import get_location_name
 from app.services.storage import LocalStorage
 from app.models.photo import Photo, PhotoStatus
@@ -21,12 +21,12 @@ async def upload_photo(
     
     file_path = storage.save(image_bytes, file.filename)
     
-    gps = extract_gps(image_bytes)
-    latitude = longitude = None
+    exif = extract_exif_data(image_bytes)
+    latitude = exif.get("latitude")
+    longitude = exif.get("longitude")
     location_name = None
     
-    if gps:
-        latitude, longitude = gps
+    if latitude is not None and longitude is not None:
         location_name = get_location_name(latitude, longitude)
     
     photo = Photo(
@@ -35,6 +35,12 @@ async def upload_photo(
         latitude=latitude,
         longitude=longitude,
         location_name=location_name,
+        camera=exif.get("camera"),
+        lens=exif.get("lens"),
+        focal_length=exif.get("focal_length"),
+        exposure_time=exif.get("exposure_time"),
+        aperture=exif.get("aperture"),
+        iso=exif.get("iso"),
         status=PhotoStatus.draft,
     )
     db.add(photo)

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Sabbalens — Geo-aware photo scheduling. Upload a photo, get its location from EXIF GPS, and schedule the post. Every frame, placed." />
+  <title>Sabbalens — Every frame, placed.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Geometric Graphic -->
+  <svg class="graphic" viewBox="0 0 800 600" fill="none" aria-hidden="true">
+    <path class="shape shape--1" d="M140 120 L140 480 L220 480 L220 400 L300 400 L300 320 L220 320 L220 240 L300 240 L300 160 L220 160 L220 120 Z" fill="#000" />
+    <circle class="shape shape--2" cx="380" cy="360" r="60" fill="#000" />
+    <path class="shape shape--3" d="M540 120 L660 120 L660 200 L620 200 L620 360 L580 360 L580 200 L540 200 Z M560 360 L640 360 L640 440 L560 440 Z" fill="#000" />
+  </svg>
+
+  <main class="panel">
+    <p class="eyebrow">Sabbalens</p>
+    <h1 class="title">Every frame, placed.</h1>
+    <p class="lead">
+      Upload a photo. Sabbalens reads its GPS data, finds the place name,
+      and lets you schedule the post.
+    </p>
+
+    <div class="actions">
+      <a href="/app/" class="btn btn-primary" id="open-scheduler">Open Scheduler →</a>
+      <a href="/app/#library" class="btn btn-secondary" id="open-library">View Library</a>
+    </div>
+
+    <p class="stat" id="photo-stat" aria-live="polite">&nbsp;</p>
+  </main>
+
+  <footer class="footer">Sabbalens v1.0</footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

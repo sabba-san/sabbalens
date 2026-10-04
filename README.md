@@ -109,6 +109,8 @@ app/
 - Python 3.12+
 - WSL2 (Ubuntu) or Linux/macOS
 
+The application does not require an MCP server. MCP servers are editor/assistant integrations and are unrelated to this FastAPI service.
+
 ### Install
 
 ```bash
@@ -123,10 +125,33 @@ cp .env.example .env  # edit if needed
 ### Run
 
 ```bash
-python main.py
+python3 main.py
 # → http://localhost:8000
 # → http://localhost:8000/docs (Swagger UI)
 ```
+
+The browser interface is available at `http://localhost:8000/app/`.
+
+### Run with Docker
+
+Prerequisites:
+
+- Docker Engine or Docker Desktop with Compose enabled
+
+Start the service from the project directory:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Open these URLs after the container starts:
+
+- Browser interface: `http://localhost:8000/app/`
+- API documentation: `http://localhost:8000/docs`
+- Health check: `http://localhost:8000/health`
+
+SQLite data and uploaded photos are persisted in the local `data/` directory. Stop the service with `docker compose down`; the data remains available for the next start.
 
 ### Test Upload
 
