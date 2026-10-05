@@ -6,12 +6,23 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.api.v1.router import router as api_v1_router
 from app.services.storage import storage
+from app.services.scheduler import init_scheduler, start_scheduler, shutdown_scheduler
+from app.tasks.publisher import register_publisher_job
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+
+    # Initialize and start scheduler
+    init_scheduler()
+    register_publisher_job()
+    start_scheduler()
+
     yield
+
+    # Clean shutdown
+    shutdown_scheduler()
 
 
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)

@@ -9,6 +9,7 @@ class StorageProtocol(Protocol):
     def save(self, file_bytes: bytes, filename: str) -> str: ...
     def get_url(self, file_path: str) -> str: ...
     def delete(self, file_path: str) -> None: ...
+    def get_public_url(self, file_path: str) -> str: ...
 
 
 class LocalStorage:
@@ -32,6 +33,14 @@ class LocalStorage:
             Path(file_path).unlink(missing_ok=True)
         except Exception:
             pass  # In production, log this but don't fail the request
+
+    def get_public_url(self, file_path: str) -> str:
+        """Public HTTPS URL that Meta's servers fetch the image from.
+
+        Stored paths are container-absolute (/data/uploads/<uuid>.jpg), so only
+        the basename is used.
+        """
+        return f"{settings.public_base_url}/uploads/{Path(file_path).name}"
 
 
 storage = LocalStorage(settings.upload_dir)

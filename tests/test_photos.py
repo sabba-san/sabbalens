@@ -4,6 +4,13 @@ import io
 from PIL import Image
 import piexif
 import os
+import asyncio
+from datetime import datetime, timezone, timedelta
+from unittest.mock import patch, MagicMock
+from app.services.scheduler import scheduler
+from app.tasks.publisher import publish_scheduled_photos
+from app.core.database import SessionLocal
+from app.models.photo import Photo, PhotoStatus
 
 
 def create_test_image_with_gps(lat=37.7749, lon=-122.4194) -> bytes:
@@ -105,3 +112,75 @@ class TestPhotoDelete:
         
         # Verify file gone
         assert not os.path.exists(file_path)
+
+
+class TestScheduler:
+    @pytest.mark.asyncio
+    async def test_scheduler_publishes_due_photos(self, client: AsyncClient):
+        """Test that the scheduler job publishes photos with past scheduled_at."""
+        # Upload a photo
+        image_bytes = create_test_image_with_gps()
+        files = {"file": ("test_sched.jpg", image_bytes, "image/jpeg")}
+        upload_resp = await client.post("/api/v1/photos/upload", files=files)
+        photo_id = upload_resp.json()["id"]
+        
+        # Schedule it for the past
+        past_time = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat().replace("+00:00", "Z")
+        patch_resp = await client.patch(
+            f"/api/v1/photos/{photo_id}",
+            json={"status": "scheduled", "scheduled_at": past_time},
+        )
+        assert patch_resp.status_code == 200
+        
+        # Run the publisher job directly (simulating scheduler tick)
+        with patch("app.tasks.publisher.social.publish_to_instagram", return_value="ig_media_12345") as mock_publish:
+            publish_scheduled_photos()
+            mock_publish.assert_called_once()
+        
+        # Verify photo was published
+        get_resp = await client.get(f"/api/v1/photos/{photo_id}")
+        data = get_resp.json()
+        assert data["status"] == "published"
+        assert data["published_at"] is not None
+        assert data["instagram_media_id"] == "ig_media_12345"
+        
+    @pytest.mark.asyncio
+    async def test_scheduler_does_not_publish_future_photos(self, client: AsyncClient):
+        """Test that scheduler ignores photos scheduled for the future."""
+        image_bytes = create_test_image_with_gps()
+        files = {"file": ("test_future.jpg", image_bytes, "image/jpeg")}
+        upload_resp = await client.post("/api/v1/photos/upload", files=files)
+        photo_id = upload_resp.json()["id"]
+        
+        # Schedule for far future
+        future_time = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat().replace("+00:00", "Z")
+        await client.patch(
+            f"/api/v1/photos/{photo_id}",
+            json={"status": "scheduled", "scheduled_at": future_time},
+        )
+        
+        # Run publisher job
+        with patch("app.tasks.publisher.social.publish_to_instagram") as mock_publish:
+            publish_scheduled_photos()
+            mock_publish.assert_not_called()
+        
+        # Verify photo remains scheduled
+        get_resp = await client.get(f"/api/v1/photos/{photo_id}")
+        data = get_resp.json()
+        assert data["status"] == "scheduled"
+        assert data["published_at"] is None
+        
+    @pytest.mark.asyncio
+    async def test_scheduler_job_registered(self):
+        """Verify the publisher job can be registered with the scheduler."""
+        # In test context, register the job ourselves
+        from app.tasks.publisher import register_publisher_job
+        register_publisher_job()
+        
+        jobs = scheduler.get_jobs()
+        job_ids = [job.id for job in jobs]
+        assert "publish_scheduled_photos" in job_ids
+        
+        # Verify trigger is 60-second interval
+        job = next(j for j in jobs if j.id == "publish_scheduled_photos")
+        assert job.trigger.interval.total_seconds() == 60

@@ -871,18 +871,61 @@ img {
 }
 
 .import-dialog input[type="file"] {
-  width: 100%;
-  padding: var(--space-4);
-  background: var(--color-bg);
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  z-index: -1;
+}
+
+.import-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
   border: 2px dashed var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-fg);
-  margin-bottom: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
   cursor: pointer;
-  font-size: var(--text-sm);
   transition:
     border-color var(--duration-fast),
     background var(--duration-fast);
+}
+
+.import-dropzone:hover,
+.import-dropzone:focus-within {
+  border-color: var(--color-accent);
+  background: var(--color-accent-glow);
+}
+
+.import-dropzone.drag-over {
+  border-color: var(--color-accent) !important;
+  background: var(--color-accent-glow-strong) !important;
+}
+
+.import-dropzone .material-symbols-outlined {
+  font-size: 48px;
+  color: var(--color-fg-subtle);
+  transition: color var(--duration-fast);
+}
+
+.import-dropzone:hover .material-symbols-outlined,
+.import-dropzone:focus-within .material-symbols-outlined {
+  color: var(--color-accent);
+}
+
+.import-dropzone span:last-child {
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+}
+
+.import-dialog input[type="file"]:focus + .import-dropzone {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
+  outline: none;
 }
 
 .import-dialog input[type="file"]:hover {

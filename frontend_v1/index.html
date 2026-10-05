@@ -261,16 +261,20 @@
   </footer>
 
 
-  <!-- ============================================================
-       IMPORT DIALOG
-       ============================================================ -->
+<!-- ============================================================
+        IMPORT DIALOG
+        ============================================================ -->
   <dialog id="import-dialog" class="import-dialog">
     <form method="dialog">
       <h3>Import Photo</h3>
-      <input type="file" id="import-file" accept="image/*" required />
+      <div class="import-dropzone" id="import-dropzone" tabindex="0" role="button" aria-label="Drop photo here or click to select">
+        <input type="file" id="import-file" accept="image/*" required />
+        <span class="material-symbols-outlined" aria-hidden="true">cloud_upload</span>
+        <span>Drop photo here or click to select</span>
+      </div>
       <div class="dialog-actions">
         <button value="cancel" class="btn btn-secondary" type="button" id="import-cancel">Cancel</button>
-        <button value="import" class="btn btn-primary" id="import-submit" type="button">Import</button>
+        <button value="import" class="btn btn-primary" id="import-submit" type="button" disabled>Import</button>
       </div>
     </form>
   </dialog>

@@ -351,42 +351,67 @@ async function handleImport(file) {
    ================================================================ */
 
 function setupDragDrop() {
-  var preview = document.getElementById('photo-preview');
-  var dragCounter = 0;
-
   // Prevent default on the whole document to avoid browser file-open
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   document.addEventListener('drop', function (e) { e.preventDefault(); });
 
-  preview.addEventListener('dragenter', function (e) {
+  // Main preview dropzone
+  attachDropzone('photo-preview');
+
+  // Import dialog dropzone
+  attachDropzone('import-dropzone');
+}
+
+function attachDropzone(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+
+  var dragCounter = 0;
+
+  el.addEventListener('dragenter', function (e) {
     e.preventDefault();
     dragCounter++;
-    preview.classList.add('drag-over');
+    el.classList.add('drag-over');
   });
 
-  preview.addEventListener('dragleave', function (e) {
+  el.addEventListener('dragleave', function (e) {
     e.preventDefault();
     dragCounter--;
     if (dragCounter <= 0) {
       dragCounter = 0;
-      preview.classList.remove('drag-over');
+      el.classList.remove('drag-over');
     }
   });
 
-  preview.addEventListener('dragover', function (e) {
+  el.addEventListener('dragover', function (e) {
     e.preventDefault();
   });
 
-  preview.addEventListener('drop', function (e) {
+  el.addEventListener('drop', function (e) {
     e.preventDefault();
     dragCounter = 0;
-    preview.classList.remove('drag-over');
+    el.classList.remove('drag-over');
 
     var files = e.dataTransfer.files;
     if (files.length > 0 && files[0].type.startsWith('image/')) {
       handleImport(files[0]);
     } else {
       showToast('Please drop an image file', 'error');
+    }
+  });
+
+  // Click on dropzone triggers file input
+  el.addEventListener('click', function () {
+    var fileInput = el.querySelector('input[type="file"]');
+    if (fileInput) fileInput.click();
+  });
+
+  // Keyboard: Enter/Space triggers file input
+  el.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      var fileInput = el.querySelector('input[type="file"]');
+      if (fileInput) fileInput.click();
     }
   });
 }
@@ -646,6 +671,12 @@ function init() {
   // Dialog cancel button
   document.getElementById('import-cancel').addEventListener('click', function () {
     document.getElementById('import-dialog').close('cancel');
+  });
+
+  // File input change - enable/disable import button
+  document.getElementById('import-file').addEventListener('change', function (e) {
+    var submit = document.getElementById('import-submit');
+    submit.disabled = !e.target.files[0];
   });
 
   // Dialog import button
