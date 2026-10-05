@@ -8,6 +8,7 @@ from app.core.config import settings
 class StorageProtocol(Protocol):
     def save(self, file_bytes: bytes, filename: str) -> str: ...
     def get_url(self, file_path: str) -> str: ...
+    def delete(self, file_path: str) -> None: ...
 
 
 class LocalStorage:
@@ -24,6 +25,13 @@ class LocalStorage:
 
     def get_url(self, file_path: str) -> str:
         return f"/uploads/{Path(file_path).name}"
+
+    def delete(self, file_path: str) -> None:
+        """Delete file from disk. Silently ignores missing files."""
+        try:
+            Path(file_path).unlink(missing_ok=True)
+        except Exception:
+            pass  # In production, log this but don't fail the request
 
 
 storage = LocalStorage(settings.upload_dir)

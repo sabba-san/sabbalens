@@ -469,6 +469,30 @@ img {
 }
 
 
+/* --- Import button overlay ---------------------------------------- */
+.import-btn-overlay {
+  position: absolute;
+  bottom: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  transform: translateX(-50%) translateY(var(--space-2));
+}
+
+.photo-preview--empty:hover .import-btn-overlay,
+.photo-preview--empty:focus-within .import-btn-overlay {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.photo-preview:not(.photo-preview--empty) .import-btn-overlay {
+  display: none;
+}
+
+
 /* --- Photo Metadata Panel ----------------------------------------- */
 .photo-meta {
   display: flex;

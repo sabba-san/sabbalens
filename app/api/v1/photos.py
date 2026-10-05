@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from starlette.concurrency import run_in_threadpool
 from app.api.deps import get_database, get_storage, validate_image_file
 from app.services.exif import extract_exif_data
 from app.services.geocoding import get_location_name
@@ -21,13 +22,13 @@ async def upload_photo(
     
     file_path = storage.save(image_bytes, file.filename)
     
-    exif = extract_exif_data(image_bytes)
+    exif = await run_in_threadpool(extract_exif_data, image_bytes)
     latitude = exif.get("latitude")
     longitude = exif.get("longitude")
     location_name = None
     
     if latitude is not None and longitude is not None:
-        location_name = get_location_name(latitude, longitude)
+        location_name = await run_in_threadpool(get_location_name, latitude, longitude)
     
     photo = Photo(
         filename=file.filename,
@@ -84,9 +85,14 @@ def update_photo(photo_id: int, update: PhotoUpdate, db: Session = Depends(get_d
 
 
 @router.delete("/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_photo(photo_id: int, db: Session = Depends(get_database)):
+def delete_photo(photo_id: int, db: Session = Depends(get_database), storage: LocalStorage = Depends(get_storage)):
     photo = db.query(Photo).filter(Photo.id == photo_id).first()
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
+    
+    # Delete file from disk first
+    storage.delete(photo.file_path)
+    
+    # Then delete DB record
     db.delete(photo)
     db.commit()
