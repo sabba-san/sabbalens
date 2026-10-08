@@ -38,9 +38,17 @@ def health():
     return {"status": "ok"}
 
 
-# Scheduler app at /app/
+# Scheduler app at /app/ (stable v1 — untouched)
 app_dir = Path(__file__).parent.parent / "frontend_v1"
 app.mount("/app", StaticFiles(directory=app_dir, html=True), name="frontend")
+
+# Tailwind preview at /v2/ (parallel deployment — v2 testing only)
+app_dir_v2 = Path(__file__).parent.parent / "frontend_v2"
+app.mount("/v2", StaticFiles(directory=app_dir_v2, html=True), name="frontend_v2")
+
+# Landing preview at /preview/ (parallel deployment — v2 testing only)
+preview_dir = Path(__file__).parent.parent / "frontend_landing_v2"
+app.mount("/preview", StaticFiles(directory=preview_dir, html=True), name="landing_preview")
 
 # Landing page at root (/)
 # NOTE: Must be registered LAST. A mount at "/" matches every path, so any

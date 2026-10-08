@@ -1,7 +1,10 @@
 /* ================================================================
-   SABBALENS v1.0 — Frontend Application
-   Vanilla JS, no framework dependencies.
+   SABBALENS v2.0 - Frontend Application (Tailwind preview at /v2/)
+   Vanilla JS, no framework dependencies. Same API as v1 (/api/v1).
    Security: Uses textContent / createElement for DOM, no innerHTML.
+   DESIGN.md tokens expressed as Tailwind utilities; dynamic badges
+   are injected via badgeClasses() (Vercel-style 1px borders,
+   Linear dark contrast, Shadcn-dark defaults).
    ================================================================ */
 
 const API_BASE = '/api/v1';
@@ -10,6 +13,52 @@ let currentPhotoId = null;
 const DEFAULT_HASHTAGS = ['#landscape', '#photography', '#nature', '#travel', '#shotonsony'];
 const CAPTION_MAX = 2200;
 const TOAST_DURATION_MS = 4000;
+
+
+/* ================================================================
+   TAILWIND BADGE HELPERS (replaces status-badge CSS classes)
+   ================================================================ */
+
+const BADGE_BASE = 'inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ';
+const DOT_BASE = 'w-1.5 h-1.5 rounded-full ';
+
+function badgeClasses(status) {
+  switch (status) {
+    case 'scheduled':
+      return BADGE_BASE + 'text-accent bg-[rgba(255,43,43,0.15)]';
+    case 'published':
+      return BADGE_BASE + 'text-ok bg-[rgba(34,197,94,0.15)]';
+    case 'failed':
+      return BADGE_BASE + 'text-err bg-[rgba(239,68,68,0.15)]';
+    case 'draft':
+    default:
+      return BADGE_BASE + 'text-muted border border-line';
+  }
+}
+
+function dotClasses(status) {
+  switch (status) {
+    case 'scheduled': return DOT_BASE + 'bg-accent';
+    case 'published': return DOT_BASE + 'bg-ok';
+    case 'failed': return DOT_BASE + 'bg-err';
+    case 'draft':
+    default: return DOT_BASE + 'bg-muted';
+  }
+}
+
+/** Apply a status badge to an existing pill element (keeps dot span). */
+function setBadge(el, status, label) {
+  var safe = ['draft', 'scheduled', 'published', 'failed'].indexOf(status) !== -1 ? status : 'draft';
+  el.className = badgeClasses(safe);
+  el.replaceChildren();
+  var dot = document.createElement('span');
+  dot.className = dotClasses(safe);
+  dot.setAttribute('aria-hidden', 'true');
+  var text = document.createElement('span');
+  text.textContent = label || safe;
+  el.appendChild(dot);
+  el.appendChild(text);
+}
 
 
 /* ================================================================
@@ -117,10 +166,8 @@ function renderPhoto(photo) {
   // Show the image, hide the empty state
   const preview = document.getElementById('photo-preview');
   preview.classList.remove('photo-preview--empty');
-  const emptyIcon = preview.querySelector('.material-symbols-outlined');
-  if (emptyIcon) emptyIcon.style.display = 'none';
-  const emptyText = preview.querySelector('span:last-child');
-  if (emptyText && emptyText.textContent.includes('Drop')) emptyText.style.display = 'none';
+  var emptyBlock = preview.querySelector('.grid.place-items-center');
+  if (emptyBlock) emptyBlock.style.display = 'none';
 
   const img = document.getElementById('photo-img');
   img.src = photoUrl(photo);
@@ -147,10 +194,8 @@ function renderPhoto(photo) {
       ? photo.aperture + '  \u2022  ' + photo.exposure_time + '  \u2022  ISO ' + photo.iso
       : '\u2014';
 
-  // Status badge
-  var statusEl = document.getElementById('photo-status');
-  statusEl.textContent = photo.status;
-  statusEl.className = 'status-badge status-badge--' + photo.status;
+  // Status badge (Tailwind utilities via helper)
+  setBadge(document.getElementById('photo-status'), photo.status);
 
   // Caption (reset when switching between photos)
   document.getElementById('caption').value = photo.caption || '';
@@ -308,7 +353,7 @@ async function handlePublishNow() {
 
   var btn = document.getElementById('publish-now-btn');
   btn.disabled = true;
-  var originalText = btn.textContent;
+  var originalHTML = btn.innerHTML;
   btn.textContent = 'Publishing...';
 
   try {
@@ -322,7 +367,7 @@ async function handlePublishNow() {
     });
 
     if (res.status === 409) {
-      showToast('This photo is already published', 'warn');
+      showToast('This photo is already published', 'error');
       return;
     }
 
@@ -340,7 +385,7 @@ async function handlePublishNow() {
     showToast('Network error during publish', 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = originalText;
+    btn.innerHTML = originalHTML;
   }
 }
 
@@ -357,7 +402,7 @@ async function handleImport(file) {
   var formData = new FormData();
   formData.append('file', file);
 
-  showToast('Uploading ' + file.name + '…', 'info');
+  showToast('Uploading ' + file.name + '...', 'info');
 
   try {
     var res = await fetch(API_BASE + '/photos/upload', {
@@ -369,7 +414,7 @@ async function handleImport(file) {
     showToast('Photo imported!', 'success');
     // Navigate to the new photo after a short delay for the toast to show
     setTimeout(function () {
-      window.location.href = '/app/?id=' + encodeURIComponent(photo.id);
+      window.location.href = '/v2/?id=' + encodeURIComponent(photo.id);
     }, 800);
   } catch (e) {
     console.error('Upload failed');
@@ -451,7 +496,7 @@ function attachDropzone(id) {
 
 /* ================================================================
    VIEWS / NAV TABS
-   Hash-based so views are linkable: /app/#library, /app/#settings
+   Hash-based so views are linkable: /v2/#library, /v2/#settings
    ================================================================ */
 
 var VIEWS = ['scheduler', 'library', 'settings'];
@@ -490,7 +535,7 @@ function setupTabs() {
 
 
 /* ================================================================
-   LIBRARY
+   LIBRARY (Tailwind cards - same data flow as v1)
    ================================================================ */
 
 var libraryPhotos = [];
@@ -543,9 +588,11 @@ function renderLibrary() {
       ? 'No photos yet.'
       : 'No ' + libraryFilter + ' photos.';
     empty.hidden = false;
+    empty.classList.remove('hidden');
     return;
   }
   empty.hidden = true;
+  empty.classList.add('hidden');
 
   photos.forEach(function (photo, i) {
     grid.appendChild(buildPhotoCard(photo, i));
@@ -554,12 +601,13 @@ function renderLibrary() {
 
 function buildMetaRow(icon, text, mono) {
   var row = document.createElement('div');
-  row.className = 'photo-card__meta' + (mono ? ' photo-card__meta--mono' : '');
+  row.className = 'flex items-center gap-2 text-xs text-muted' + (mono ? ' font-mono' : '');
   var ic = document.createElement('span');
-  ic.className = 'material-symbols-outlined';
+  ic.className = 'material-symbols-outlined text-[16px]';
   ic.setAttribute('aria-hidden', 'true');
   ic.textContent = icon;
   var tx = document.createElement('span');
+  tx.className = 'truncate';
   tx.textContent = text;
   row.appendChild(ic);
   row.appendChild(tx);
@@ -569,32 +617,50 @@ function buildMetaRow(icon, text, mono) {
 function buildPhotoCard(photo, index) {
   var card = document.createElement('button');
   card.type = 'button';
-  card.className = 'photo-card';
+  card.className = 'v2-card-enter text-left rounded-md border border-line bg-surface p-4 grid gap-3 hover:border-muted transition shadow-[0_1px_2px_rgba(0,0,0,0.3)] focus-visible:shadow-focus';
   card.id = 'photo-card-' + photo.id;
   card.style.animationDelay = Math.min(index * 40, 400) + 'ms';
   card.setAttribute('aria-label', 'Open ' + photo.filename + ' (' + photo.status + ')');
 
   var thumb = document.createElement('div');
-  thumb.className = 'photo-card__thumb';
+  thumb.className = 'overflow-hidden rounded-sm aspect-[4/3] bg-bg';
   var img = document.createElement('img');
   img.src = photoUrl(photo);
   img.alt = '';
   img.loading = 'lazy';
+  img.className = 'w-full h-full object-cover';
+  thumb.appendChild(img);
+
+  // Badge lives in the caption row below the photo, never overlaid on it.
   var badge = document.createElement('span');
   var status = STATUS_LABELS[photo.status] ? photo.status : 'draft';
-  badge.className = 'status-badge status-badge--' + status;
-  badge.textContent = photo.status;
-  thumb.appendChild(img);
-  thumb.appendChild(badge);
+  badge.className = badgeClasses(status) + ' shrink-0';
+  var dot = document.createElement('span');
+  dot.className = dotClasses(status);
+  dot.setAttribute('aria-hidden', 'true');
+  var label = document.createElement('span');
+  label.textContent = photo.status;
+  badge.replaceChildren();
+  badge.appendChild(dot);
+  badge.appendChild(label);
 
   var body = document.createElement('div');
-  body.className = 'photo-card__body';
+  body.className = 'grid gap-1.5 min-w-0';
+  var topline = document.createElement('div');
+  topline.className = 'flex items-center justify-between gap-2 min-w-0';
   var title = document.createElement('div');
-  title.className = 'photo-card__title';
+  title.className = 'text-sm font-medium truncate';
   title.textContent = photo.filename;
-  body.appendChild(title);
+  topline.appendChild(title);
+  topline.appendChild(badge);
+  body.appendChild(topline);
   body.appendChild(buildMetaRow('location_on', photo.location_name || 'Unknown location'));
   body.appendChild(buildMetaRow('upload', 'Uploaded ' + formatDate(photo.created_at), true));
+  // Monospaced GPS coordinates (dashboard requirement)
+  var gps = (photo.latitude != null && photo.longitude != null)
+    ? photo.latitude.toFixed(4) + '\u00B0, ' + photo.longitude.toFixed(4) + '\u00B0'
+    : 'No GPS data';
+  body.appendChild(buildMetaRow('gps_fixed', gps, true));
   if (photo.status === 'scheduled' && photo.scheduled_at) {
     body.appendChild(buildMetaRow('schedule', 'Scheduled ' + formatDate(photo.scheduled_at), true));
   }
@@ -627,14 +693,14 @@ async function openPhoto(id) {
   if (!photo) return;
   renderPhoto(photo);
   renderHashtags(photo);
-  history.replaceState(null, '', '/app/?id=' + encodeURIComponent(id) + '#scheduler');
+  history.replaceState(null, '', '/v2/?id=' + encodeURIComponent(id) + '#scheduler');
   showView('scheduler');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 
 /* ================================================================
-   SETTINGS
+   SETTINGS (includes Instagram connect state for OAuth)
    ================================================================ */
 
 async function loadSettings() {
@@ -643,11 +709,9 @@ async function loadSettings() {
   try {
     var res = await fetch('/health');
     var ok = res.ok && (await res.json()).status === 'ok';
-    apiEl.textContent = ok ? 'online' : 'error';
-    apiEl.className = 'status-badge status-badge--' + (ok ? 'published' : 'failed');
+    setBadge(apiEl, ok ? 'published' : 'failed', ok ? 'online' : 'error');
   } catch (e) {
-    apiEl.textContent = 'offline';
-    apiEl.className = 'status-badge status-badge--failed';
+    setBadge(apiEl, 'failed', 'offline');
   }
   try {
     var r = await fetch(API_BASE + '/photos?limit=500');
@@ -655,6 +719,16 @@ async function loadSettings() {
   } catch (e) {
     countEl.textContent = '\u2014';
   }
+
+  // OAuth redirect lands at /v2/#settings?ig=connected (or ?ig=connected).
+  // Flip the Instagram badge without a backend call.
+  try {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('ig') === 'connected') {
+      var igEl = document.getElementById('settings-ig');
+      if (igEl) setBadge(igEl, 'published', 'connected');
+    }
+  } catch (e) { /* ignore */ }
 }
 
 
@@ -670,7 +744,7 @@ function init() {
   document.getElementById('library-refresh').addEventListener('click', loadLibrary);
   document.getElementById('library-import-btn').addEventListener('click', openImportDialog);
 
-  // Initial view from URL hash (e.g. /app/#library)
+  // Initial view from URL hash (e.g. /v2/#library)
   showView(window.location.hash.slice(1) || 'scheduler');
 
   var photoId = getPhotoIdFromUrl();
@@ -727,12 +801,6 @@ function init() {
       var file = document.getElementById('import-file').files[0];
       if (file) handleImport(file);
     }
-  });
-
-  // File input change
-  document.getElementById('import-file').addEventListener('change', function (e) {
-    var submit = document.getElementById('import-submit');
-    submit.disabled = !e.target.files[0];
   });
 
   // Set default date to today
