@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Sabbalens - geo-aware photo scheduling pipeline. Upload a photo, get its location from EXIF GPS, and schedule the post. Every frame, placed." />
-  <title>Sabbalens - Every frame, placed.</title>
+  <title>Sabbalens — Every frame, placed.</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -12,281 +12,438 @@
       theme: {
         extend: {
           colors: {
-            bg: '#09090B',
-            surface: '#18181B',
-            surfacehover: '#1F1F23',
-            line: '#27272A',
+            bg: '#0A0A0A',
             fg: '#FAFAFA',
-            muted: '#71717A',
-            accent: '#FF2B2B',
-            accenthover: '#FF5555',
+            muted: '#1A1A1A',
+            mutedFg: '#737373',
+            accent: '#FF3D00',
+            accentFg: '#0A0A0A',
+            border: '#262626',
+            input: '#1A1A1A',
+            card: '#0F0F0F',
             ok: '#22C55E',
             warn: '#F59E0B',
             err: '#EF4444',
           },
           fontFamily: {
-            display: ['Geist', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'IBM Plex Mono', 'ui-monospace', 'monospace'],
+            display: ['"Inter Tight"', 'Inter', 'system-ui', 'sans-serif'],
+            serif: ['"Playfair Display"', 'Georgia', 'serif'],
+            mono: ['"JetBrains Mono"', '"Fira Code"', 'ui-monospace', 'monospace'],
           },
-          borderRadius: { sm: '4px', md: '8px', lg: '12px' },
-          boxShadow: { focus: '0 0 0 2px #FF2B2B' },
+          fontSize: {
+            xs: '0.75rem',
+            sm: '0.875rem',
+            base: '1rem',
+            lg: '1.125rem',
+            xl: '1.25rem',
+            '2xl': '1.5rem',
+            '3xl': '2rem',
+            '4xl': '2.5rem',
+            '5xl': '3.5rem',
+            '6xl': '4.5rem',
+            '7xl': '6rem',
+            '8xl': '8rem',
+            '9xl': '10rem',
+          },
+          letterSpacing: {
+            tighter: '-0.06em',
+            tight: '-0.04em',
+            normal: '-0.01em',
+            wide: '0.05em',
+            wider: '0.1em',
+            widest: '0.2em',
+          },
+          lineHeight: {
+            none: '1',
+            tight: '1.1',
+            snug: '1.25',
+            normal: '1.6',
+            relaxed: '1.75',
+          },
+          borderRadius: { none: '0px' },
+          boxShadow: { none: 'none' },
+          transitionTimingFunction: { decisive: 'cubic-bezier(0.25, 0, 0, 1)' },
         }
       }
     }
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
   <style>
-    html{background:#09090B}
-    body{background:#09090B}
-    :focus-visible{outline:none;box-shadow:0 0 0 2px #FF2B2B}
-    /* Scroll reveal (added by JS only, so no-JS still shows content) */
-    .has-reveal .reveal{opacity:0;transform:translateY(14px);transition:opacity .5s cubic-bezier(0.16,1,0.3,1),transform .5s cubic-bezier(0.16,1,0.3,1)}
+    :root{
+      --background:#0A0A0A; --foreground:#FAFAFA; --muted:#1A1A1A;
+      --muted-fg:#737373; --accent:#FF3D00; --border:#262626;
+    }
+    html{background:#0A0A0A;scroll-behavior:smooth}
+    body{background:#0A0A0A;overflow-x:clip}
+    ::selection{background:#FF3D00;color:#0A0A0A}
+    /* Subtle film grain — tactile quality without competing with type */
+    body::before{
+      content:"";position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.015;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    }
+    /* Focus: 2px accent outline, 2px offset. No glow, no fill change. */
+    :focus-visible{outline:2px solid #FF3D00;outline-offset:2px}
+    /* ---- Button primitives: sharp, underline-driven, decisive motion ---- */
+    .btn-primary{
+      position:relative;display:inline-flex;align-items:center;gap:.5rem;
+      color:#FF3D00;font-weight:600;font-size:.875rem;line-height:1;
+      text-transform:uppercase;letter-spacing:.1em;white-space:nowrap;
+      padding:.75rem 0;min-height:44px;transition:color 150ms cubic-bezier(0.25,0,0,1);
+    }
+    .btn-primary::after{
+      content:"";position:absolute;left:0;right:0;bottom:.4rem;height:2px;background:#FF3D00;
+      transform:scaleX(1);transform-origin:left center;
+      transition:transform 150ms cubic-bezier(0.25,0,0,1);
+    }
+    .btn-primary:hover::after{transform:scaleX(1.1)}
+    .btn-primary:active{transform:translateY(1px)}
+    .btn-secondary{
+      display:inline-flex;align-items:center;gap:.5rem;min-height:44px;
+      border:1px solid #FAFAFA;color:#FAFAFA;font-weight:600;font-size:.875rem;
+      text-transform:uppercase;letter-spacing:.1em;white-space:nowrap;
+      padding:.75rem 1.5rem;transition:all 150ms cubic-bezier(0.25,0,0,1);
+    }
+    .btn-secondary:hover{background:#FAFAFA;color:#0A0A0A}
+    .btn-secondary:active{transform:translateY(1px)}
+    .btn-ghost{
+      position:relative;display:inline-flex;align-items:center;gap:.5rem;
+      color:#737373;font-weight:500;font-size:.875rem;white-space:nowrap;
+      padding:.5rem 0;min-height:44px;transition:color 150ms cubic-bezier(0.25,0,0,1);
+    }
+    .btn-ghost::after{
+      content:"";position:absolute;left:0;right:0;bottom:.3rem;height:1px;background:currentColor;
+      transform:scaleX(0);transform-origin:left center;
+      transition:transform 150ms cubic-bezier(0.25,0,0,1);
+    }
+    .btn-ghost:hover{color:#FAFAFA}
+    .btn-ghost:hover::after{transform:scaleX(1)}
+    /* ---- Scroll reveal: fade + rise, once, decisive easing ---- */
+    .has-reveal .reveal{
+      opacity:0;transform:translateY(20px);
+      transition:opacity 500ms cubic-bezier(0.25,0,0,1),transform 500ms cubic-bezier(0.25,0,0,1);
+    }
     .has-reveal .reveal.in{opacity:1;transform:none}
-    .skeleton{background:#1F1F23;border:1px solid #27272A;border-radius:8px;animation:pulse 1.6s ease-in-out infinite}
-    @keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
-    @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}.has-reveal .reveal{opacity:1!important;transform:none!important}}
+    /* ---- Layered typographic depth (no shadows) ---- */
+    .display-ghost{
+      position:absolute;font-weight:900;letter-spacing:-0.06em;line-height:1;
+      color:#1A1A1A;user-select:none;pointer-events:none;white-space:nowrap;
+    }
+    .accent-bar{height:4px;width:4rem;background:#FF3D00}
+    /* ---- Flat skeleton (sharp, no radius, no glow) ---- */
+    .skeleton{background:#1A1A1A;border:1px solid #262626;animation:pulse 1.6s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.9}}
+    /* ---- Status badges: sharp squares, mono, uppercase ---- */
+    .badge{display:inline-flex;align-items:center;gap:.375rem;padding:.25rem .625rem;
+      font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;
+      text-transform:uppercase;letter-spacing:.1em;line-height:1.4;white-space:nowrap}
+    /* ---- Step numerals: border color at rest, accent on hover ---- */
+    .step-num{transition:color 150ms cubic-bezier(0.25,0,0,1)}
+    .step:hover .step-num{color:#FF3D00}
+    @media (prefers-reduced-motion: reduce){
+      *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+      .has-reveal .reveal{opacity:1!important;transform:none!important}
+    }
   </style>
 </head>
-<body class="bg-bg text-fg font-display antialiased min-h-screen tracking-tight flex flex-col">
+<body class="bg-bg text-fg font-display antialiased min-h-screen tracking-normal flex flex-col">
 
-  <!-- Header: single line, 56px -->
-  <header class="h-14 border-b border-line flex items-center justify-between px-4 sm:px-6 sticky top-0 bg-bg/90 backdrop-blur z-40">
-    <a href="/preview/" class="flex items-center gap-2 shrink-0" aria-label="Sabbalens home">
-      <svg class="w-6 h-6 text-fg" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <path d="M6 6h4v4H6v4H4V10H4V6h2zm20 0h4v4h-4v4h-2V10h-2V6h2zm-12 8v4H6v4H4v-4H4v-4h2zm16 0v4h-4v4h-2v-4h-2v-4h2z" fill="currentColor"/>
-        <circle cx="16" cy="16" r="2" fill="currentColor"/>
-      </svg>
-      <span class="font-bold text-[15px] tracking-[-0.01em]">Sabbalens</span>
-    </a>
-    <nav class="flex items-center gap-1 sm:gap-2" aria-label="Primary">
-      <a href="#how-title" class="hidden md:inline-flex h-9 px-3 items-center rounded-md text-sm text-muted hover:text-fg hover:bg-surface transition">How it works</a>
-      <a href="/v2/#library" class="hidden sm:inline-flex h-9 px-3 items-center rounded-md text-sm text-muted hover:text-fg hover:bg-surface transition">Library</a>
-      <a href="/docs" target="_blank" rel="noopener" class="hidden sm:inline-flex h-9 px-3 items-center rounded-md text-sm text-muted hover:text-fg hover:bg-surface transition">API docs</a>
-      <a href="/v2/" class="inline-flex h-9 px-4 items-center rounded-md bg-accent text-bg text-sm font-medium hover:bg-accenthover active:scale-[0.98] transition min-h-[36px]">Open Scheduler</a>
-    </nav>
+  <!-- Header: hairline rule, ghost nav, inversion CTA -->
+  <header class="border-b border-border sticky top-0 bg-bg z-40">
+    <div class="max-w-[1200px] mx-auto px-6 md:px-12 h-16 flex items-center justify-between gap-4">
+      <a href="/preview/" class="flex items-center gap-3 shrink-0" aria-label="Sabbalens home">
+        <svg class="w-6 h-6 text-fg" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M6 6h4v4H6v4H4V10H4V6h2zm20 0h4v4h-4v4h-2V10h-2V6h2zm-12 8v4H6v4H4v-4H4v-4h2zm16 0v4h-4v4h-2v-4h-2v-4h2z" fill="currentColor"/>
+          <circle cx="16" cy="16" r="2" fill="#FF3D00"/>
+        </svg>
+        <span class="font-bold text-base tracking-tight uppercase">Sabbalens</span>
+      </a>
+      <nav class="flex items-center gap-5 md:gap-8" aria-label="Primary">
+        <a href="#how-title" class="btn-ghost hidden md:inline-flex">How it works</a>
+        <a href="/v2/#library" class="btn-ghost hidden sm:inline-flex">Library</a>
+        <a href="/docs" target="_blank" rel="noopener" class="btn-ghost hidden sm:inline-flex">API docs</a>
+        <a href="/v2/" class="btn-secondary !py-2 !px-4 !min-h-[36px] !text-xs">Open Scheduler</a>
+      </nav>
+    </div>
   </header>
 
-  <main class="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 pb-16">
+  <main class="flex-1 w-full max-w-[1200px] mx-auto px-6 md:px-12">
 
-    <!-- S1 HERO: asymmetric split, photo right -->
-    <section class="pt-12 sm:pt-16 pb-8 grid gap-8 lg:grid-cols-2 lg:items-center" aria-labelledby="hero-title">
-      <div class="grid gap-4 content-center">
-        <p class="font-mono text-[11px] font-medium tracking-[0.12em] uppercase text-muted">Geo-aware photo pipeline</p>
-        <h1 id="hero-title" class="font-bold tracking-[-0.02em] leading-[1.05] text-4xl md:text-5xl lg:text-6xl">Every frame,<br/>placed.</h1>
-        <p class="text-[15px] leading-relaxed text-muted max-w-[52ch]">
+    <!-- S1 HERO: poster statement, 7/5 asymmetric split -->
+    <section class="relative overflow-hidden pt-20 md:pt-28 pb-20 md:pb-28 grid gap-12 lg:grid-cols-[7fr_5fr] lg:items-end" aria-labelledby="hero-title">
+      <span class="display-ghost hidden lg:block text-[10rem] -top-4 -left-2" aria-hidden="true">01</span>
+      <div class="relative grid gap-6 content-center">
+        <p class="font-mono text-xs font-medium tracking-widest uppercase text-mutedFg">Geo-aware photo pipeline</p>
+        <h1 id="hero-title" class="font-extrabold tracking-tighter leading-none text-5xl sm:text-6xl md:text-7xl lg:text-8xl">Every frame,<br/><span class="text-accent">placed.</span></h1>
+        <div class="accent-bar" aria-hidden="true"></div>
+        <p class="text-lg md:text-xl leading-snug text-mutedFg max-w-2xl">
           Upload a photo. Sabbalens reads its GPS, names the place, and publishes to Instagram on schedule.
         </p>
-        <div class="flex flex-wrap gap-2 pt-1">
-          <a href="/v2/" class="inline-flex h-11 px-5 items-center gap-2 rounded-md bg-accent text-bg text-sm font-medium hover:bg-accenthover active:scale-[0.98] transition min-h-[44px]">
-            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">schedule</span>
+        <p class="font-serif italic text-lg text-fg/70 max-w-2xl">A gallery wall for your pipeline — type does the talking.</p>
+        <div class="flex flex-wrap items-center gap-x-8 gap-y-3 pt-2">
+          <a href="/v2/" class="btn-primary">
             Open Scheduler
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_right_alt</span>
           </a>
-          <a href="#how-title" class="inline-flex h-11 px-5 items-center rounded-md border border-line text-sm text-fg hover:bg-surfacehover active:scale-[0.98] transition min-h-[44px]">How it works</a>
+          <a href="#how-title" class="btn-secondary">How it works</a>
         </div>
+        <p class="font-mono text-xs text-mutedFg tracking-wide">POST /api/v1/photos/upload &nbsp;→&nbsp; 201 in one shot</p>
       </div>
-      <figure class="reveal rounded-md border border-line bg-surface overflow-hidden">
-        <img src="https://picsum.photos/seed/sabbalens-dusk-harbor/880/1000" alt="Harbor at dusk, the kind of frame Sabbalens places on schedule" class="w-full aspect-[4/3] lg:aspect-[5/5] object-cover" loading="eager" />
-        <figcaption class="flex items-center justify-between gap-3 px-4 py-3">
-          <span class="font-mono text-xs text-muted">37.7749, -122.4194</span>
-          <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium text-ok bg-[rgba(34,197,94,0.15)]"><span class="w-1.5 h-1.5 rounded-full bg-ok" aria-hidden="true"></span>published</span>
+      <figure class="reveal relative border border-border bg-transparent overflow-hidden">
+        <div class="overflow-hidden">
+          <img src="https://picsum.photos/seed/sabbalens-dusk-harbor/880/1000" alt="Harbor at dusk, the kind of frame Sabbalens places on schedule" class="w-full aspect-[4/3] lg:aspect-[4/5] object-cover hover:scale-105 transition-transform duration-500 ease-[cubic-bezier(0.25,0,0,1)]" loading="eager" />
+        </div>
+        <figcaption class="flex items-center justify-between gap-3 px-4 py-3 border-t border-border">
+          <span class="font-mono text-xs text-mutedFg">37.7749&deg;, -122.4194&deg;</span>
+          <span class="badge text-ok bg-[rgba(34,197,94,0.12)] border border-ok/30"><span class="w-1.5 h-1.5 bg-ok" aria-hidden="true"></span>published</span>
         </figcaption>
       </figure>
     </section>
 
-    <!-- S2 LIVE STATS: data strip -->
-    <section class="reveal pb-8" aria-label="Live pipeline stats">
-      <dl class="rounded-md border border-line bg-surface px-4 py-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div>
-          <dt class="font-mono text-xs text-muted">Total photos</dt>
-          <dd class="font-mono text-2xl mt-1" id="stat-total">-</dd>
+    <div class="border-t border-border" aria-hidden="true"></div>
+
+    <!-- S2 LIVE STATS: ruled data strip, mono labels -->
+    <section class="reveal py-20 md:py-28" aria-label="Live pipeline stats">
+      <p class="font-mono text-xs tracking-widest uppercase text-mutedFg mb-6">Live from this server</p>
+      <dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-8">
+        <div class="border-l-2 border-border pl-4">
+          <dt class="font-mono text-[11px] tracking-widest uppercase text-mutedFg">Total photos</dt>
+          <dd class="font-display font-bold tracking-tight text-4xl mt-2" id="stat-total">-</dd>
         </div>
-        <div>
-          <dt class="font-mono text-xs text-muted">Draft</dt>
-          <dd class="font-mono text-2xl mt-1 text-muted" id="stat-draft">-</dd>
+        <div class="border-l border-border pl-4">
+          <dt class="font-mono text-[11px] tracking-widest uppercase text-mutedFg">Draft</dt>
+          <dd class="font-display font-bold tracking-tight text-4xl mt-2 text-mutedFg" id="stat-draft">-</dd>
         </div>
-        <div>
-          <dt class="font-mono text-xs text-muted">Scheduled</dt>
-          <dd class="font-mono text-2xl mt-1 text-accent" id="stat-scheduled">-</dd>
+        <div class="border-l-2 border-accent pl-4">
+          <dt class="font-mono text-[11px] tracking-widest uppercase text-mutedFg">Scheduled</dt>
+          <dd class="font-display font-bold tracking-tight text-4xl mt-2 text-accent" id="stat-scheduled">-</dd>
         </div>
-        <div>
-          <dt class="font-mono text-xs text-muted">Published</dt>
-          <dd class="font-mono text-2xl mt-1 text-ok" id="stat-published">-</dd>
+        <div class="border-l border-border pl-4">
+          <dt class="font-mono text-[11px] tracking-widest uppercase text-mutedFg">Published</dt>
+          <dd class="font-display font-bold tracking-tight text-4xl mt-2 text-ok" id="stat-published">-</dd>
         </div>
-        <div>
-          <dt class="font-mono text-xs text-muted">Failed</dt>
-          <dd class="font-mono text-2xl mt-1 text-err" id="stat-failed">-</dd>
+        <div class="border-l border-border pl-4">
+          <dt class="font-mono text-[11px] tracking-widest uppercase text-mutedFg">Failed</dt>
+          <dd class="font-display font-bold tracking-tight text-4xl mt-2 text-err" id="stat-failed">-</dd>
         </div>
-        <div>
-          <dt class="font-mono text-xs text-muted">API</dt>
-          <dd class="mt-2 flex items-center gap-2 text-sm">
-            <span id="health-dot" class="w-2 h-2 rounded-full bg-muted" aria-hidden="true"></span>
-            <span id="health-text" class="font-mono text-xs text-muted">checking</span>
+        <div class="border-l border-border pl-4">
+          <dt class="font-mono text-[11px] tracking-widest uppercase text-mutedFg">API</dt>
+          <dd class="mt-3 flex items-center gap-2">
+            <span id="health-dot" class="w-2 h-2 bg-mutedFg" aria-hidden="true"></span>
+            <span id="health-text" class="font-mono text-xs uppercase tracking-widest text-mutedFg">checking</span>
           </dd>
         </div>
       </dl>
     </section>
 
-    <!-- S3 PIPELINE: asymmetric 2+2 grid -->
-    <section class="reveal py-8" aria-labelledby="how-title">
-      <h2 id="how-title" class="text-[24px] font-bold tracking-[-0.01em]">How it works</h2>
-      <p class="text-sm text-muted mt-1 mb-4 max-w-[65ch]">A real data pipeline, not just CRUD. Each step maps to a live endpoint.</p>
-      <ol class="grid gap-4 md:grid-cols-2">
-        <li class="rounded-md border border-line bg-surface p-4 grid gap-2 md:mr-8">
-          <h3 class="font-bold text-[15px]">Ingest the upload</h3>
-          <p class="text-sm text-muted">Multipart upload. GPS parsed from binary EXIF, file stored on local disk.</p>
-          <code class="font-mono text-xs text-muted bg-bg border border-line rounded-sm px-2 py-1.5 break-all">POST /api/v1/photos/upload</code>
-        </li>
-        <li class="rounded-md border border-line bg-surface p-4 grid gap-2 md:ml-8 md:mt-6">
-          <h3 class="font-bold text-[15px]">Name the place</h3>
-          <p class="text-sm text-muted">Nominatim reverse-geocode turns coordinates into city, state, country.</p>
-          <code class="font-mono text-xs text-muted bg-bg border border-line rounded-sm px-2 py-1.5 break-all">37.7749, -122.4194 becomes San Francisco</code>
-        </li>
-        <li class="rounded-md border border-line bg-surface p-4 grid gap-2 md:mr-8 md:mt-2">
-          <h3 class="font-bold text-[15px]">Book the slot</h3>
-          <p class="text-sm text-muted">Caption, destinations, and a UTC publish time. Stored as a scheduled row.</p>
-          <code class="font-mono text-xs text-muted bg-bg border border-line rounded-sm px-2 py-1.5 break-all">PATCH /photos/{id} with status scheduled</code>
-        </li>
-        <li class="rounded-md border border-line bg-surface p-4 grid gap-2 md:ml-8 md:mt-8">
-          <h3 class="font-bold text-[15px]">Publish on the tick</h3>
-          <p class="text-sm text-muted">The 60 second worker finds due rows, builds the Meta container, publishes it. Transient errors retry, permanent ones surface as failed.</p>
-          <code class="font-mono text-xs text-muted bg-bg border border-line rounded-sm px-2 py-1.5 break-all">POST /photos/{id}/publish</code>
-        </li>
-      </ol>
+    <div class="border-t border-border" aria-hidden="true"></div>
+
+    <!-- S3 PIPELINE: oversized numerals, staggered asymmetry -->
+    <section class="reveal relative overflow-hidden py-20 md:py-28" aria-labelledby="how-title">
+      <span class="display-ghost hidden lg:block text-[10rem] top-8 right-0" aria-hidden="true">02</span>
+      <div class="relative">
+        <p class="font-mono text-xs tracking-widest uppercase text-accent mb-4">The pipeline</p>
+        <h2 id="how-title" class="font-bold tracking-tight leading-tight text-4xl md:text-5xl max-w-3xl">How it works</h2>
+        <p class="text-lg md:text-xl text-mutedFg mt-3 mb-12 max-w-2xl leading-snug">A real data pipeline, not just CRUD. Each step maps to a live endpoint.</p>
+        <ol class="grid gap-x-8 gap-y-12 md:grid-cols-2">
+          <li class="step md:mr-12 border-t-2 border-fg pt-6 grid gap-3 content-start">
+            <span class="step-num font-display font-black tracking-tighter leading-none text-7xl md:text-8xl text-border" aria-hidden="true">01</span>
+            <h3 class="font-bold tracking-tight text-2xl">Ingest the upload</h3>
+            <p class="text-base text-mutedFg leading-normal max-w-xl">Multipart upload. GPS parsed from binary EXIF, file stored on local disk.</p>
+            <code class="font-mono text-xs text-mutedFg bg-muted border border-border px-3 py-2 break-all">POST /api/v1/photos/upload</code>
+          </li>
+          <li class="step md:ml-12 md:mt-10 border-t border-border pt-6 grid gap-3 content-start">
+            <span class="step-num font-display font-black tracking-tighter leading-none text-7xl md:text-8xl text-border" aria-hidden="true">02</span>
+            <h3 class="font-bold tracking-tight text-2xl">Name the place</h3>
+            <p class="text-base text-mutedFg leading-normal max-w-xl">Nominatim reverse-geocode turns coordinates into city, state, country.</p>
+            <code class="font-mono text-xs text-mutedFg bg-muted border border-border px-3 py-2 break-all">37.7749, -122.4194 becomes San Francisco</code>
+          </li>
+          <li class="step md:mr-12 border-t border-border pt-6 grid gap-3 content-start">
+            <span class="step-num font-display font-black tracking-tighter leading-none text-7xl md:text-8xl text-border" aria-hidden="true">03</span>
+            <h3 class="font-bold tracking-tight text-2xl">Book the slot</h3>
+            <p class="text-base text-mutedFg leading-normal max-w-xl">Caption, destinations, and a UTC publish time. Stored as a scheduled row.</p>
+            <code class="font-mono text-xs text-mutedFg bg-muted border border-border px-3 py-2 break-all">PATCH /photos/{id} with status scheduled</code>
+          </li>
+          <li class="step md:ml-12 md:mt-10 border-t-2 border-accent pt-6 grid gap-3 content-start">
+            <span class="step-num font-display font-black tracking-tighter leading-none text-7xl md:text-8xl text-border" aria-hidden="true">04</span>
+            <h3 class="font-bold tracking-tight text-2xl">Publish on the tick</h3>
+            <p class="text-base text-mutedFg leading-normal max-w-xl">The 60 second worker finds due rows, builds the Meta container, publishes it. Transient errors retry, permanent ones surface as failed.</p>
+            <code class="font-mono text-xs text-mutedFg bg-muted border border-border px-3 py-2 break-all">POST /photos/{id}/publish</code>
+          </li>
+        </ol>
+      </div>
     </section>
 
-    <!-- S4 LIFECYCLE + EDGE CASES: vertical stack -->
-    <section class="reveal py-8" aria-labelledby="lifecycle-title">
-      <h2 id="lifecycle-title" class="text-[24px] font-bold tracking-[-0.01em]">Status lifecycle</h2>
-      <p class="text-sm text-muted mt-1 mb-4 max-w-[65ch]">One photo, one post. The state machine enforces it.</p>
-      <div class="rounded-md border border-line bg-surface p-4">
-        <div class="flex flex-wrap items-center gap-2 text-xs font-medium">
-          <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-muted border border-line">draft</span>
-          <span class="font-mono text-muted" aria-hidden="true">-&gt;</span>
-          <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-accent bg-[rgba(255,43,43,0.15)]">scheduled</span>
-          <span class="font-mono text-muted" aria-hidden="true">-&gt;</span>
-          <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-ok bg-[rgba(34,197,94,0.15)]">published</span>
-          <span class="font-mono text-muted" aria-hidden="true">/</span>
-          <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-err bg-[rgba(239,68,68,0.15)]">failed, then retry</span>
-        </div>
-        <div class="mt-4 grid gap-4 md:grid-cols-3">
-          <div class="grid gap-1 content-start">
-            <h3 class="font-bold text-sm">Fail fast on formats</h3>
-            <p class="text-sm text-muted">JPG and PNG only. Rejected at schedule time, before the worker ever fires, because Instagram accepts nothing else.</p>
+    <div class="border-t border-border" aria-hidden="true"></div>
+
+    <!-- S4 LIFECYCLE: state machine + edge cases -->
+    <section class="reveal relative overflow-hidden py-20 md:py-28" aria-labelledby="lifecycle-title">
+      <span class="display-ghost hidden lg:block text-[10rem] top-8 right-0" aria-hidden="true">03</span>
+      <div class="relative">
+        <p class="font-mono text-xs tracking-widest uppercase text-accent mb-4">State machine</p>
+        <h2 id="lifecycle-title" class="font-bold tracking-tight leading-tight text-4xl md:text-5xl">Status lifecycle</h2>
+        <p class="text-lg text-mutedFg mt-3 mb-10 max-w-2xl leading-snug">One photo, one post. The state machine enforces it.</p>
+        <div class="border border-border bg-transparent p-6 md:p-8">
+          <div class="flex flex-wrap items-center gap-3 text-xs font-medium">
+            <span class="badge text-mutedFg border border-border">draft</span>
+            <span class="font-mono text-mutedFg" aria-hidden="true">-&gt;</span>
+            <span class="badge text-accent bg-[rgba(255,61,0,0.12)] border border-accent/40">scheduled</span>
+            <span class="font-mono text-mutedFg" aria-hidden="true">-&gt;</span>
+            <span class="badge text-ok bg-[rgba(34,197,94,0.12)] border border-ok/30">published</span>
+            <span class="font-mono text-mutedFg" aria-hidden="true">/</span>
+            <span class="badge text-err bg-[rgba(239,68,68,0.12)] border border-err/30">failed, then retry</span>
           </div>
-          <div class="grid gap-1 content-start">
-            <h3 class="font-bold text-sm">Never double post</h3>
-            <p class="text-sm text-muted">The button disables in flight and the server answers 409 on already-published. Two rapid clicks cannot create two posts.</p>
-          </div>
-          <div class="grid gap-1 content-start">
-            <h3 class="font-bold text-sm">Retry the right way</h3>
-            <p class="text-sm text-muted">Timeouts and rate limits stay scheduled and retry next tick. Bad tokens and rejected formats move to failed with the Meta message kept verbatim.</p>
+          <div class="mt-8 pt-8 border-t border-border grid gap-8 md:grid-cols-3">
+            <div class="grid gap-2 content-start">
+              <h3 class="font-bold tracking-tight text-lg">Fail fast on formats</h3>
+              <p class="text-base text-mutedFg leading-normal">JPG and PNG only. Rejected at schedule time, before the worker ever fires, because Instagram accepts nothing else.</p>
+            </div>
+            <div class="grid gap-2 content-start md:border-l md:border-border md:pl-8">
+              <h3 class="font-bold tracking-tight text-lg">Never double post</h3>
+              <p class="text-base text-mutedFg leading-normal">The button disables in flight and the server answers 409 on already-published. Two rapid clicks cannot create two posts.</p>
+            </div>
+            <div class="grid gap-2 content-start md:border-l md:border-border md:pl-8">
+              <h3 class="font-bold tracking-tight text-lg">Retry the right way</h3>
+              <p class="text-base text-mutedFg leading-normal">Timeouts and rate limits stay scheduled and retry next tick. Bad tokens and rejected formats move to failed with the Meta message kept verbatim.</p>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- S5 TRACE: full-width terminal -->
-    <section class="reveal py-8" aria-labelledby="trace-title">
-      <h2 id="trace-title" class="text-[24px] font-bold tracking-[-0.01em]">One photo, traced</h2>
-      <p class="text-sm text-muted mt-1 mb-4 max-w-[65ch]">Every line below maps to a real request or worker log.</p>
-      <div class="rounded-md border border-line bg-black p-4 overflow-x-auto">
-        <pre class="font-mono text-xs leading-relaxed text-fg/90 whitespace-pre"><span class="text-accent">$</span> curl -X POST /api/v1/photos/upload -F "file=@DSC00234.jpg"
-<span class="text-muted">201 draft, 37.7749, -122.4194, San Francisco CA</span>
+    <div class="border-t border-border" aria-hidden="true"></div>
+
+    <!-- S5 TRACE: full-width terminal, sharp -->
+    <section class="reveal py-20 md:py-28" aria-labelledby="trace-title">
+      <p class="font-mono text-xs tracking-widest uppercase text-accent mb-4">Evidence</p>
+      <h2 id="trace-title" class="font-bold tracking-tight leading-tight text-4xl md:text-5xl">One photo, traced</h2>
+      <p class="text-lg text-mutedFg mt-3 mb-10 max-w-2xl leading-snug">Every line below maps to a real request or worker log.</p>
+      <div class="border border-border bg-black p-5 md:p-8 overflow-x-auto">
+        <pre class="font-mono text-sm leading-relaxed text-fg/90 whitespace-pre"><span class="text-accent">$</span> curl -X POST /api/v1/photos/upload -F "file=@DSC00234.jpg"
+<span class="text-mutedFg">201 draft, 37.7749, -122.4194, San Francisco CA</span>
 <span class="text-accent">$</span> curl -X PATCH /api/v1/photos/42 -d '{"status":"scheduled","scheduled_at":"2026-10-09T09:00:00Z"}'
-<span class="text-muted">200 scheduled, worker picks it up at 09:00:00Z</span>
-<span class="text-muted">[publisher] tick: 1 due, container then media_publish</span>
+<span class="text-mutedFg">200 scheduled, worker picks it up at 09:00:00Z</span>
+<span class="text-mutedFg">[publisher] tick: 1 due, container then media_publish</span>
 <span class="text-ok">published, media id 1789, timestamp set server side</span>
-<span class="text-muted">transient "download failed" stays scheduled, retries next 60s tick</span></pre>
+<span class="text-mutedFg">transient "download failed" stays scheduled, retries next 60s tick</span></pre>
       </div>
     </section>
 
-    <!-- S6 PREVIEW: photo grid, captions below images -->
-    <section class="reveal py-8" aria-labelledby="preview-title">
-      <div class="flex items-center justify-between gap-3 mb-4">
-        <div>
-          <h2 id="preview-title" class="text-[24px] font-bold tracking-[-0.01em]">Fresh from the pipeline</h2>
-          <p class="text-sm text-muted mt-1" id="preview-sub">Latest uploads with live status.</p>
+    <div class="border-t border-border" aria-hidden="true"></div>
+
+    <!-- S6 PREVIEW: flat cards, captions strictly below images -->
+    <section class="reveal relative overflow-hidden py-20 md:py-28" aria-labelledby="preview-title">
+      <span class="display-ghost hidden lg:block text-[10rem] top-8 right-0" aria-hidden="true">04</span>
+      <div class="relative">
+        <div class="flex flex-wrap items-end justify-between gap-4 mb-10">
+          <div>
+            <p class="font-mono text-xs tracking-widest uppercase text-accent mb-4">Proof</p>
+            <h2 id="preview-title" class="font-bold tracking-tight leading-tight text-4xl md:text-5xl">Fresh from the pipeline</h2>
+            <p class="text-lg text-mutedFg mt-3" id="preview-sub">Latest uploads with live status.</p>
+          </div>
+          <a href="/v2/#library" class="btn-ghost">Library
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_right_alt</span>
+          </a>
         </div>
-        <a href="/v2/#library" class="h-9 px-4 inline-flex items-center rounded-md border border-line text-sm hover:bg-surfacehover active:scale-[0.98] transition shrink-0">Library</a>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="preview-grid" aria-live="polite"></div>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="preview-grid" aria-live="polite"></div>
     </section>
 
-    <!-- S7 ARCHITECTURE: bento, hero cell plus three -->
-    <section class="reveal py-8" aria-labelledby="arch-title">
-      <h2 id="arch-title" class="text-[24px] font-bold tracking-[-0.01em]">Why this architecture</h2>
-      <p class="text-sm text-muted mt-1 mb-4 max-w-[65ch]">Boring on purpose. Each choice removes a server the project does not need yet.</p>
-      <div class="grid gap-4 md:grid-cols-3">
-        <figure class="rounded-md border border-line bg-surface overflow-hidden md:col-span-2">
-          <img src="https://picsum.photos/seed/sabbalens-lighttable/1200/700" alt="Contact sheet of frames laid out like a lighttable" class="w-full aspect-[16/9] object-cover" loading="lazy" />
-          <figcaption class="px-4 py-3 border-t border-line">
-            <p class="font-bold text-sm">Single worker, single file</p>
-            <p class="text-sm text-muted mt-1">FastAPI plus SQLite with WAL. Readers never block the 60 second writer, and the database stays one file in the Docker volume.</p>
+    <div class="border-t border-border" aria-hidden="true"></div>
+
+    <!-- S7 ARCHITECTURE: bento, hero cell + sharp stack -->
+    <section class="reveal py-20 md:py-28" aria-labelledby="arch-title">
+      <p class="font-mono text-xs tracking-widest uppercase text-accent mb-4">Decisions</p>
+      <h2 id="arch-title" class="font-bold tracking-tight leading-tight text-4xl md:text-5xl">Why this architecture</h2>
+      <p class="text-lg text-mutedFg mt-3 mb-10 max-w-2xl leading-snug">Boring on purpose. Each choice removes a server the project does not need yet.</p>
+      <div class="grid gap-6 md:grid-cols-3">
+        <figure class="relative border border-border bg-transparent overflow-hidden md:col-span-2">
+          <span class="absolute top-0 left-0 h-1 w-16 bg-accent z-10" aria-hidden="true"></span>
+          <div class="overflow-hidden">
+            <img src="https://picsum.photos/seed/sabbalens-lighttable/1200/700" alt="Contact sheet of frames laid out like a lighttable" class="w-full aspect-[16/9] object-cover hover:scale-105 transition-transform duration-500 ease-[cubic-bezier(0.25,0,0,1)]" loading="lazy" />
+          </div>
+          <figcaption class="px-5 py-4 border-t border-border">
+            <p class="font-bold tracking-tight text-lg">Single worker, single file</p>
+            <p class="text-base text-mutedFg mt-1 leading-normal">FastAPI plus SQLite with WAL. Readers never block the 60 second writer, and the database stays one file in the Docker volume.</p>
           </figcaption>
         </figure>
-        <div class="grid gap-4 content-start">
-          <div class="rounded-md border border-accent/40 bg-[rgba(255,43,43,0.06)] p-4">
-            <p class="font-bold text-sm">Scheduler without Redis</p>
-            <p class="text-sm text-muted mt-1">APScheduler runs in process, one instance max. No queue to operate until multiple users demand it.</p>
+        <div class="grid gap-6 content-start">
+          <div class="relative border-2 border-accent bg-transparent p-5">
+            <span class="badge bg-accent text-accentFg mb-3">No extra servers</span>
+            <p class="font-bold tracking-tight text-lg">Scheduler without Redis</p>
+            <p class="text-base text-mutedFg mt-1 leading-normal">APScheduler runs in process, one instance max. No queue to operate until multiple users demand it.</p>
           </div>
-          <div class="rounded-md border border-line bg-surface p-4">
-            <p class="font-bold text-sm">Tunnel instead of S3</p>
-            <p class="text-sm text-muted mt-1">Meta fetches images over the Cloudflare tunnel. Public HTTPS with no buckets and no storage bill.</p>
+          <div class="border border-border bg-transparent p-5 hover:border-mutedFg transition-colors duration-150">
+            <p class="font-bold tracking-tight text-lg">Tunnel instead of S3</p>
+            <p class="text-base text-mutedFg mt-1 leading-normal">Meta fetches images over the Cloudflare tunnel. Public HTTPS with no buckets and no storage bill.</p>
           </div>
-          <div class="rounded-md border border-line bg-surface p-4">
-            <p class="font-bold text-sm">Vanilla JS</p>
-            <p class="text-sm text-muted mt-1">No build step, no framework to upgrade. The dashboard is static files on the same server.</p>
+          <div class="border border-border bg-transparent p-5 hover:border-mutedFg transition-colors duration-150">
+            <p class="font-bold tracking-tight text-lg">Vanilla JS</p>
+            <p class="text-base text-mutedFg mt-1 leading-normal">No build step, no framework to upgrade. The dashboard is static files on the same server.</p>
           </div>
         </div>
       </div>
+      <blockquote class="mt-12 border-l-2 border-accent pl-6 py-1">
+        <p class="font-serif italic text-xl md:text-2xl leading-snug text-fg/80">“Let the type carry the page — the photographs carry themselves.”</p>
+      </blockquote>
     </section>
 
-    <!-- S8 SYSTEM STATUS: grouped rows -->
-    <section class="reveal py-8" aria-labelledby="status-title">
-      <h2 id="status-title" class="text-[24px] font-bold tracking-[-0.01em]">System status</h2>
-      <p class="text-sm text-muted mt-1 mb-4 max-w-[65ch]">Live values from this server, checked on every load.</p>
-      <dl class="rounded-md border border-line bg-surface px-4 py-2">
-        <div class="flex items-center justify-between gap-4 py-3">
-          <dt class="text-sm">API status</dt>
-          <dd><span id="settings-api" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium text-muted border border-line">checking</span></dd>
+    <div class="border-t border-border" aria-hidden="true"></div>
+
+    <!-- S8 SYSTEM STATUS: ruled rows -->
+    <section class="reveal py-20 md:py-28" aria-labelledby="status-title">
+      <p class="font-mono text-xs tracking-widest uppercase text-accent mb-4">Operations</p>
+      <h2 id="status-title" class="font-bold tracking-tight leading-tight text-4xl md:text-5xl">System status</h2>
+      <p class="text-lg text-mutedFg mt-3 mb-10 max-w-2xl leading-snug">Live values from this server, checked on every load.</p>
+      <dl class="border border-border bg-transparent px-5 md:px-8">
+        <div class="flex items-center justify-between gap-4 py-4">
+          <dt class="text-base">API status</dt>
+          <dd><span id="settings-api" class="badge text-mutedFg border border-border">checking</span></dd>
         </div>
-        <div class="flex items-center justify-between gap-4 py-3 border-t border-line">
-          <dt class="text-sm">Photos stored</dt>
+        <div class="flex items-center justify-between gap-4 py-4 border-t border-border">
+          <dt class="text-base">Photos stored</dt>
           <dd class="font-mono text-sm" id="settings-count">-</dd>
         </div>
-        <div class="flex items-center justify-between gap-4 py-3 border-t border-line">
-          <dt class="text-sm">Instagram publishing</dt>
-          <dd class="flex items-center gap-3">
-            <span id="settings-ig" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium text-err bg-[rgba(239,68,68,0.15)]"><span class="w-1.5 h-1.5 rounded-full bg-err"></span>not connected</span>
-            <a id="settings-ig-connect" class="text-sm text-accent hover:text-accenthover underline-offset-4 hover:underline" href="/api/v1/auth/instagram">Connect</a>
+        <div class="flex items-center justify-between gap-4 py-4 border-t border-border">
+          <dt class="text-base">Instagram publishing</dt>
+          <dd class="flex items-center gap-4">
+            <span id="settings-ig" class="badge text-err bg-[rgba(239,68,68,0.12)] border border-err/30"><span class="w-1.5 h-1.5 bg-err"></span>not connected</span>
+            <a id="settings-ig-connect" class="btn-ghost !min-h-0 !py-0" href="/api/v1/auth/instagram">Connect</a>
           </dd>
         </div>
       </dl>
-      <p class="font-mono text-xs text-muted mt-3">Publishing needs the machine and the tunnel up at publish time. The worker polls every 60 seconds.</p>
+      <p class="font-mono text-xs text-mutedFg mt-4">Publishing needs the machine and the tunnel up at publish time. The worker polls every 60 seconds.</p>
     </section>
 
-    <!-- S9 CLOSING: centered CTA -->
-    <section class="reveal py-12 text-center grid gap-4 place-items-center" aria-label="Get started">
-      <h2 class="font-bold tracking-[-0.02em] leading-tight text-4xl md:text-5xl">Place your next frame.</h2>
-      <p class="text-sm text-muted max-w-[52ch]">Import one photo. Watch GPS become a place, a slot, and a published post.</p>
-      <div class="flex flex-wrap justify-center gap-2">
-        <a href="/v2/" class="inline-flex h-11 px-5 items-center rounded-md bg-accent text-bg text-sm font-medium hover:bg-accenthover active:scale-[0.98] transition min-h-[44px]">Open Scheduler</a>
-        <a href="/docs" target="_blank" rel="noopener" class="inline-flex h-11 px-5 items-center rounded-md border border-line text-sm hover:bg-surfacehover active:scale-[0.98] transition min-h-[44px]">API docs</a>
+    <div class="border-t border-border" aria-hidden="true"></div>
+
+    <!-- S9 CLOSING: poster-scale statement -->
+    <section class="reveal relative overflow-hidden py-28 md:py-40 text-center grid gap-6 place-items-center" aria-label="Get started">
+      <span class="display-ghost hidden md:block text-[9rem] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" aria-hidden="true">FIN</span>
+      <div class="relative grid gap-6 place-items-center">
+        <div class="accent-bar mx-auto" aria-hidden="true"></div>
+        <h2 class="font-extrabold tracking-tighter leading-none text-5xl md:text-6xl lg:text-7xl max-w-4xl">Place your next frame.</h2>
+        <p class="text-lg text-mutedFg max-w-xl leading-snug">Import one photo. Watch GPS become a place, a slot, and a published post.</p>
+        <div class="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 pt-2">
+          <a href="/v2/" class="btn-primary">Open Scheduler
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_right_alt</span>
+          </a>
+          <a href="/docs" target="_blank" rel="noopener" class="btn-secondary">API docs</a>
+        </div>
       </div>
     </section>
   </main>
 
-  <footer class="border-t border-line px-4 sm:px-6 py-6">
-    <div class="max-w-[1200px] mx-auto flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-muted">
-      <span>Sabbalens - Every frame, placed.</span>
-      <span class="flex gap-4">
-        <a href="/health" class="hover:text-fg">/health</a>
-        <a href="/docs" class="hover:text-fg">/docs</a>
-        <a href="/app/" class="hover:text-fg">/app</a>
-        <a href="/v2/" class="hover:text-fg">/v2</a>
+  <footer class="border-t border-border">
+    <div class="max-w-[1200px] mx-auto px-6 md:px-12 py-8 flex flex-wrap items-center justify-between gap-3 font-mono text-xs text-mutedFg">
+      <span class="uppercase tracking-widest">Sabbalens — Every frame, placed.</span>
+      <span class="flex gap-6">
+        <a href="/health" class="hover:text-fg transition-colors duration-150">/health</a>
+        <a href="/docs" class="hover:text-fg transition-colors duration-150">/docs</a>
+        <a href="/app/" class="hover:text-fg transition-colors duration-150">/app</a>
+        <a href="/v2/" class="hover:text-fg transition-colors duration-150">/v2</a>
       </span>
     </div>
   </footer>

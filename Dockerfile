@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY frontend_v1 ./frontend_v1
 COPY frontend_landing ./frontend_landing
+COPY frontend_v2 ./frontend_v2
+COPY frontend_landing_v2 ./frontend_landing_v2
 COPY main.py ./main.py
 
 RUN mkdir -p /data/uploads

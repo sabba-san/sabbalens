@@ -7,15 +7,15 @@
 const API_BASE = '/api/v1';
 const PREVIEW_LIMIT = 6;
 
-const BADGE_BASE = 'inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ';
-const DOT_BASE = 'w-1.5 h-1.5 rounded-full ';
+const BADGE_BASE = 'badge ';
+const DOT_BASE = 'w-1.5 h-1.5 ';
 
 function badgeClasses(status) {
   switch (status) {
-    case 'scheduled': return BADGE_BASE + 'text-accent bg-[rgba(255,43,43,0.15)]';
-    case 'published': return BADGE_BASE + 'text-ok bg-[rgba(34,197,94,0.15)]';
-    case 'failed': return BADGE_BASE + 'text-err bg-[rgba(239,68,68,0.15)]';
-    default: return BADGE_BASE + 'text-muted border border-line';
+    case 'scheduled': return BADGE_BASE + 'text-accent bg-[rgba(255,61,0,0.12)] border border-accent/40';
+    case 'published': return BADGE_BASE + 'text-ok bg-[rgba(34,197,94,0.12)] border border-ok/30';
+    case 'failed': return BADGE_BASE + 'text-err bg-[rgba(239,68,68,0.12)] border border-err/30';
+    default: return BADGE_BASE + 'text-mutedFg border border-border';
   }
 }
 
@@ -24,7 +24,7 @@ function dotClasses(status) {
     case 'scheduled': return DOT_BASE + 'bg-accent';
     case 'published': return DOT_BASE + 'bg-ok';
     case 'failed': return DOT_BASE + 'bg-err';
-    default: return DOT_BASE + 'bg-muted';
+    default: return DOT_BASE + 'bg-mutedFg';
   }
 }
 
@@ -90,12 +90,12 @@ async function loadHealth() {
   try {
     var res = await fetch('/health');
     var ok = res.ok && (await res.json()).status === 'ok';
-    if (dot) dot.className = 'w-2 h-2 rounded-full ' + (ok ? 'bg-ok' : 'bg-err');
-    if (text) { text.textContent = ok ? 'online' : 'error'; text.className = 'font-mono text-xs ' + (ok ? 'text-ok' : 'text-err'); }
+    if (dot) dot.className = 'w-2 h-2 ' + (ok ? 'bg-ok' : 'bg-err');
+    if (text) { text.textContent = ok ? 'online' : 'error'; text.className = 'font-mono text-xs uppercase tracking-widest ' + (ok ? 'text-ok' : 'text-err'); }
     if (apiBadge) setBadge(apiBadge, ok ? 'published' : 'failed', ok ? 'online' : 'error');
   } catch (e) {
-    if (dot) dot.className = 'w-2 h-2 rounded-full bg-err';
-    if (text) { text.textContent = 'offline'; text.className = 'font-mono text-xs text-err'; }
+    if (dot) dot.className = 'w-2 h-2 bg-err';
+    if (text) { text.textContent = 'offline'; text.className = 'font-mono text-xs uppercase tracking-widest text-err'; }
     if (apiBadge) setBadge(apiBadge, 'failed', 'offline');
   }
 }
@@ -105,20 +105,23 @@ async function loadHealth() {
 function buildPreviewCard(photo) {
   var a = document.createElement('a');
   a.href = '/v2/?id=' + encodeURIComponent(photo.id);
-  a.className = 'group block overflow-hidden rounded-md border border-line bg-surface hover:border-muted active:scale-[0.98] transition';
+  a.className = 'group block overflow-hidden border border-border bg-transparent hover:border-mutedFg transition-colors duration-150';
   a.setAttribute('aria-label', photo.filename + ' (' + photo.status + ')');
 
+  var imgWrap = document.createElement('div');
+  imgWrap.className = 'overflow-hidden';
   var img = document.createElement('img');
   img.src = photoUrl(photo);
   img.alt = photo.filename || 'Uploaded photo';
   img.loading = 'lazy';
-  img.className = 'w-full aspect-[4/3] object-cover group-hover:scale-[1.02] transition';
-  a.appendChild(img);
+  img.className = 'w-full aspect-[4/3] object-cover group-hover:scale-105 transition-transform duration-500 ease-[cubic-bezier(0.25,0,0,1)]';
+  imgWrap.appendChild(img);
+  a.appendChild(imgWrap);
 
   var caption = document.createElement('div');
-  caption.className = 'flex items-center justify-between gap-2 px-3 py-2.5 border-t border-line';
+  caption.className = 'flex items-center justify-between gap-2 px-4 py-3 border-t border-border';
   var meta = document.createElement('span');
-  meta.className = 'truncate font-mono text-[11px] text-muted';
+  meta.className = 'truncate font-mono text-xs text-mutedFg';
   meta.textContent = (photo.location_name || 'Unknown location') + ', ' + formatDate(photo.created_at);
   caption.appendChild(meta);
   caption.appendChild(buildBadge(photo.status, photo.status));
@@ -143,16 +146,16 @@ async function loadPreviewGrid() {
     grid.replaceChildren();
     if (photos.length === 0) {
       var empty = document.createElement('div');
-      empty.className = 'col-span-full rounded-md border border-dashed border-line p-8 text-center grid gap-2 place-items-center';
+      empty.className = 'col-span-full border border-dashed border-border p-12 text-center grid gap-3 place-items-center';
       var t = document.createElement('p');
-      t.className = 'text-sm text-fg';
+      t.className = 'font-bold tracking-tight text-2xl';
       t.textContent = 'No photos yet.';
       var s = document.createElement('p');
-      s.className = 'text-sm text-muted';
+      s.className = 'text-base text-mutedFg';
       s.textContent = 'Import one in the scheduler to start the pipeline.';
       var link = document.createElement('a');
       link.href = '/v2/';
-      link.className = 'inline-flex h-11 px-5 items-center rounded-md bg-accent text-bg text-sm font-medium hover:bg-accenthover transition min-h-[44px]';
+      link.className = 'btn-secondary mt-2';
       link.textContent = 'Open Scheduler';
       empty.appendChild(t);
       empty.appendChild(s);
@@ -170,9 +173,10 @@ async function loadPreviewGrid() {
   }
 }
 
-/* Reveal on scroll: transform plus opacity only, skipped when the
-   user prefers reduced motion. Uses IntersectionObserver, never a
-   scroll listener. */
+/* Reveal on scroll: fade plus 20px rise over 500ms, once only,
+   15% threshold with -50px margin, 100ms base plus 80ms stagger.
+   Skipped when the user prefers reduced motion. Uses
+   IntersectionObserver, never a scroll listener. */
 function setupReveal() {
   document.body.classList.add('has-reveal');
   var items = document.querySelectorAll('.reveal');
@@ -183,12 +187,12 @@ function setupReveal() {
   var io = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry, i) {
       if (entry.isIntersecting) {
-        entry.target.style.transitionDelay = Math.min(i * 60, 240) + 'ms';
+        entry.target.style.transitionDelay = Math.min(100 + i * 80, 500) + 'ms';
         entry.target.classList.add('in');
         io.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.12 });
+  }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
   items.forEach(function (el) { io.observe(el); });
 }
 
