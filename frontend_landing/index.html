@@ -1,33 +1,441 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Sabbalens — Geo-aware photo scheduling. Upload a photo, get its location from EXIF GPS, and schedule the post. Every frame, placed." />
+  <meta name="description" content="Sabbalens — Geo-aware photo staging workstation and Telegram publishing pipeline. Ingest high-res camera files, extract EXIF GPS, and dispatch scheduled posts." />
   <title>Sabbalens — Every frame, placed.</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bg: '#09090B',
+            surface: '#121215',
+            card: '#18181B',
+            border: '#27272A',
+            accent: '#FF2B2B',
+            accentHover: '#E02424',
+            telegram: '#38BDF8',
+            ok: '#22C55E',
+            warn: '#F59E0B',
+            err: '#EF4444',
+            mutedFg: '#71717A',
+            fg: '#FAFAFA',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #09090B;
+      --foreground: #FAFAFA;
+      --accent: #FF2B2B;
+    }
+    html { background: #09090B; scroll-behavior: smooth; }
+    body { background: #09090B; color: #FAFAFA; overflow-x: clip; }
+    ::selection { background: #FF2B2B; color: #FFFFFF; }
+    :focus-visible { outline: 2px solid #FF2B2B; outline-offset: 2px; }
+
+    /* Decisive button primitives (Fitts's Law compliant, min 44px) */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: #FF2B2B;
+      color: #FFFFFF;
+      font-weight: 600;
+      font-size: 0.875rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.375rem;
+      min-height: 44px;
+      transition: background-color 150ms cubic-bezier(0.25, 0, 0, 1), transform 150ms ease;
+    }
+    .btn-primary:hover { background: #E02424; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      border: 1px solid #27272A;
+      background: #18181B;
+      color: #FAFAFA;
+      font-weight: 600;
+      font-size: 0.875rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.375rem;
+      min-height: 44px;
+      transition: background-color 150ms cubic-bezier(0.25, 0, 0, 1), border-color 150ms ease;
+    }
+    .btn-secondary:hover { background: #27272A; border-color: #3F3F46; }
+
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #A1A1AA;
+      font-weight: 500;
+      font-size: 0.875rem;
+      padding: 0.5rem 0.75rem;
+      transition: color 150ms ease;
+    }
+    .btn-ghost:hover { color: #FFFFFF; }
+
+    /* Scroll reveal transitions */
+    .reveal {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 400ms cubic-bezier(0.25, 0, 0, 1), transform 400ms cubic-bezier(0.25, 0, 0, 1);
+    }
+    .reveal.in { opacity: 1; transform: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, .reveal { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important; }
+    }
+  </style>
 </head>
-<body>
-  <main class="panel">
-    <p class="eyebrow">Sabbalens</p>
-    <h1 class="title">Every frame, placed.</h1>
-    <p class="lead">
-      Upload a photo. Sabbalens reads its GPS data, finds the place name,
-      and lets you schedule the post.
-    </p>
+<body class="font-sans antialiased min-h-screen flex flex-col">
 
-    <div class="actions">
-      <a href="/app/" class="btn btn-primary" id="open-scheduler">Open Scheduler →</a>
-      <a href="/app/#library" class="btn btn-secondary" id="open-library">View Library</a>
+  <!-- Sticky Header -->
+  <header class="border-b border-border sticky top-0 bg-bg/90 backdrop-blur-md z-50">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+      <a href="/" class="flex items-center gap-3 shrink-0" aria-label="Sabbalens Home">
+        <span class="inline-flex items-center justify-center w-7 h-7 rounded bg-card border border-border text-accent font-mono font-bold text-sm">[+]</span>
+        <span class="font-bold text-base tracking-tight text-white uppercase">Sabbalens</span>
+      </a>
+
+      <nav class="hidden md:flex items-center gap-6" aria-label="Primary Navigation">
+        <a href="#how-title" class="btn-ghost">Pipeline</a>
+        <a href="#demo-title" class="btn-ghost">Interactive Demo</a>
+        <a href="#stats-title" class="btn-ghost">Live Telemetry</a>
+        <a href="#api-title" class="btn-ghost">API Reference</a>
+      </nav>
+
+      <div class="flex items-center gap-4">
+        <!-- Live Telegram Bot Status Pill -->
+        <a href="/app/#settings" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-card border border-border text-xs font-mono text-zinc-300 hover:border-zinc-700 transition" title="Telegram Bot Connection">
+          <span class="w-2 h-2 rounded-full bg-ok animate-pulse"></span>
+          <span class="hidden sm:inline">@sabbalensbot</span>
+          <span class="text-ok font-semibold">Live</span>
+        </a>
+
+        <!-- Primary CTA to Studio -->
+        <a href="/app/" class="btn-primary !py-2 !px-4 !min-h-[36px] !text-xs">
+          Open Studio →
+        </a>
+      </div>
     </div>
+  </header>
 
-    <p class="stat" id="photo-stat" aria-live="polite">&nbsp;</p>
+  <main class="flex-1 w-full max-w-7xl mx-auto px-6 py-12 md:py-20 space-y-28">
+
+    <!-- Hero Section: 7/5 Asymmetrical Grid (HCI visual focus) -->
+    <section class="grid gap-12 lg:grid-cols-[7fr_5fr] lg:items-center">
+      <div class="space-y-6">
+        <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-card border border-border font-mono text-xs uppercase tracking-wider text-mutedFg">
+          <span class="text-accent font-bold">●</span> Geo-Aware Pipeline & Telegram Publisher
+        </div>
+        
+        <h1 class="font-extrabold tracking-tight text-5xl sm:text-6xl lg:text-7xl leading-none text-white">
+          Every frame,<br/>
+          <span class="text-accent">placed.</span>
+        </h1>
+
+        <p class="text-lg md:text-xl text-zinc-400 leading-relaxed max-w-2xl">
+          Upload high-resolution camera files. Sabbalens extracts lens and exposure telemetry, resolves EXIF GPS into place names, and dispatches scheduled posts straight to your Telegram channel.
+        </p>
+
+        <!-- CTA Row (Fitts's Law: primary high-contrast target) -->
+        <div class="flex flex-wrap items-center gap-4 pt-2">
+          <a href="/app/" class="btn-primary text-base">
+            Launch Studio Workstation
+            <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </a>
+          <a href="#how-title" class="btn-secondary text-base">
+            How It Works
+          </a>
+          <a href="/app/#library" class="btn-ghost text-base">
+            View Library ↗
+          </a>
+        </div>
+
+        <!-- System Architecture Highlights -->
+        <div class="pt-4 flex flex-wrap items-center gap-6 text-xs font-mono text-zinc-500">
+          <span class="flex items-center gap-1.5"><span class="text-ok">✓</span> Direct Multipart Streaming</span>
+          <span class="flex items-center gap-1.5"><span class="text-ok">✓</span> No Cloudflare Tunnels Needed</span>
+          <span class="flex items-center gap-1.5"><span class="text-ok">✓</span> Dual PostgreSQL & SQLite Engine</span>
+        </div>
+      </div>
+
+      <!-- Hero Viewport: Viewfinder reticle preview -->
+      <div class="relative rounded-lg border border-border bg-card p-4 shadow-2xl">
+        <div class="relative aspect-[4/3] rounded bg-zinc-950 overflow-hidden flex items-center justify-center border border-zinc-800">
+          <!-- Sample Scenic Photo Simulation -->
+          <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-900 to-zinc-950 opacity-90"></div>
+          <div class="absolute w-48 h-48 rounded-full bg-amber-500/10 blur-3xl"></div>
+          <div class="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-t from-black to-transparent"></div>
+
+          <!-- Corner Focus-Peaking Reticles (#FF2B2B) -->
+          <div class="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-accent" aria-hidden="true"></div>
+          <div class="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-accent" aria-hidden="true"></div>
+          <div class="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-accent" aria-hidden="true"></div>
+          <div class="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-accent" aria-hidden="true"></div>
+
+          <!-- Status Watermark -->
+          <div class="absolute top-4 left-14 px-2 py-0.5 rounded bg-red-950/80 border border-accent/40 font-mono text-[10px] font-bold text-red-400">
+            ● DRAFT · STAGED
+          </div>
+
+          <!-- Center Camera Symbol -->
+          <div class="relative z-10 text-center space-y-2">
+            <span class="text-3xl">📷</span>
+            <p class="font-mono text-xs text-zinc-400 font-medium">DSC08921.ARW (Sony ILCE-7M4)</p>
+          </div>
+
+          <!-- Bottom Telemetry HUD Bar -->
+          <div class="absolute bottom-3 inset-x-3 rounded bg-zinc-950/90 border border-zinc-800 p-2 flex items-center justify-between text-[11px] font-mono text-zinc-300">
+            <span>FE 24-70mm · 35mm · f/2.8 · 1/250s · ISO 100</span>
+            <span class="text-accent font-semibold">📍 San Francisco, CA</span>
+          </div>
+        </div>
+
+        <!-- Meta Footer inside Card -->
+        <div class="mt-3 flex items-center justify-between text-xs font-mono text-zinc-400 px-1">
+          <span>Target: <span class="text-white">post pic dazz</span></span>
+          <span class="text-ok font-semibold">● Ready to publish</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live Telemetry Strip (Miller's 7±2 chunking) -->
+    <section id="stats-title" class="reveal rounded-lg border border-border bg-surface p-6 sm:p-8 space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="font-mono text-xs uppercase tracking-widest text-accent font-semibold">Server Telemetry</p>
+          <h2 class="text-xl font-bold text-white mt-1">Live Pipeline Status</h2>
+        </div>
+        <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-card border border-border font-mono text-xs text-ok">
+          <span class="w-2 h-2 rounded-full bg-ok animate-pulse"></span>
+          FastAPI Connected
+        </span>
+      </div>
+
+      <dl class="grid grid-cols-2 md:grid-cols-5 gap-6">
+        <div class="border-l-2 border-border pl-4">
+          <dt class="font-mono text-xs uppercase text-mutedFg">Total Photos</dt>
+          <dd id="stat-total" class="font-mono font-bold text-3xl text-white mt-1">--</dd>
+        </div>
+        <div class="border-l-2 border-border pl-4">
+          <dt class="font-mono text-xs uppercase text-mutedFg">Drafts</dt>
+          <dd id="stat-drafts" class="font-mono font-bold text-3xl text-zinc-400 mt-1">--</dd>
+        </div>
+        <div class="border-l-2 border-accent pl-4">
+          <dt class="font-mono text-xs uppercase text-mutedFg">Scheduled</dt>
+          <dd id="stat-scheduled" class="font-mono font-bold text-3xl text-warn mt-1">--</dd>
+        </div>
+        <div class="border-l-2 border-ok pl-4">
+          <dt class="font-mono text-xs uppercase text-mutedFg">Delivered</dt>
+          <dd id="stat-published" class="font-mono font-bold text-3xl text-ok mt-1">--</dd>
+        </div>
+        <div class="border-l-2 border-border pl-4 col-span-2 md:col-span-1">
+          <dt class="font-mono text-xs uppercase text-mutedFg">Bot Latency</dt>
+          <dd id="stat-latency" class="font-mono font-bold text-3xl text-telegram mt-1">112ms</dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- 4-Step Pipeline Journey (Jakob's Law mental model) -->
+    <section id="how-title" class="reveal space-y-10">
+      <div class="space-y-2">
+        <p class="font-mono text-xs uppercase tracking-widest text-accent font-semibold">The Architecture</p>
+        <h2 class="text-3xl font-extrabold text-white">How Sabbalens Works</h2>
+        <p class="text-zinc-400 max-w-2xl">A purpose-built data pipeline designed specifically for photographers and digital media teams.</p>
+      </div>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Step 1 -->
+        <div class="rounded-lg border border-border bg-card p-6 space-y-4 hover:border-zinc-700 transition">
+          <span class="font-mono text-3xl font-bold text-zinc-700">01</span>
+          <h3 class="font-bold text-lg text-white">Ingest & Parse</h3>
+          <p class="text-sm text-zinc-400 leading-relaxed">
+            Drag RAW (ARW, CR3, DNG) or JPEG files into the filmstrip. Pillow extracts binary EXIF tags (shutter, aperture, ISO, lens model) instantly in parallel.
+          </p>
+          <span class="inline-block font-mono text-[11px] text-zinc-500">POST /api/v1/photos/upload</span>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="rounded-lg border border-border bg-card p-6 space-y-4 hover:border-zinc-700 transition">
+          <span class="font-mono text-3xl font-bold text-zinc-700">02</span>
+          <h3 class="font-bold text-lg text-white">Reverse-Geocode</h3>
+          <p class="text-sm text-zinc-400 leading-relaxed">
+            GPS coordinates are translated into structured locations (City, State, Country) via OpenStreetMap with automated cache protection.
+          </p>
+          <span class="inline-block font-mono text-[11px] text-zinc-500">GET /api/v1/photos/{id}/geocode</span>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="rounded-lg border border-border bg-card p-6 space-y-4 hover:border-zinc-700 transition">
+          <span class="font-mono text-3xl font-bold text-accent">03</span>
+          <h3 class="font-bold text-lg text-white">Studio Staging</h3>
+          <p class="text-sm text-zinc-400 leading-relaxed">
+            Review your photo in the focus-reticle stage, inspect Leaflet mini-map pins, and preview the live Telegram chat bubble simulator.
+          </p>
+          <span class="inline-block font-mono text-[11px] text-zinc-500">GET /app/ (Studio Workstation)</span>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="rounded-lg border border-border bg-card p-6 space-y-4 hover:border-zinc-700 transition">
+          <span class="font-mono text-3xl font-bold text-ok">04</span>
+          <h3 class="font-bold text-lg text-white">Telegram Dispatch</h3>
+          <p class="text-sm text-zinc-400 leading-relaxed">
+            APScheduler dispatches photos directly to your Telegram channel or group using direct multipart streaming with HTML formatting.
+          </p>
+          <span class="inline-block font-mono text-[11px] text-zinc-500">POST /api/v1/photos/{id}/publish</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Pipeline Demo & Telegram Simulator Preview -->
+    <section id="demo-title" class="reveal rounded-lg border border-border bg-surface p-6 sm:p-10 space-y-8">
+      <div class="space-y-2">
+        <p class="font-mono text-xs uppercase tracking-widest text-accent font-semibold">Interactive Preview</p>
+        <h2 class="text-3xl font-extrabold text-white">WYSIWYG Telegram Publisher Demo</h2>
+        <p class="text-zinc-400 max-w-2xl">Test how your camera metadata and captions are formatted before broadcasting.</p>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-8 items-start">
+        <!-- Controls Column -->
+        <div class="space-y-6">
+          <div class="space-y-2">
+            <label class="block font-mono text-xs uppercase text-zinc-400 font-semibold">Select Sample Camera Asset:</label>
+            <div class="grid grid-cols-3 gap-2" id="sample-buttons">
+              <button data-sample="sf" class="sample-btn px-3 py-2 rounded bg-card border border-accent text-accent font-mono text-xs font-semibold text-center transition">
+                San Francisco
+              </button>
+              <button data-sample="tokyo" class="sample-btn px-3 py-2 rounded bg-card border border-border text-zinc-400 font-mono text-xs font-semibold text-center hover:border-zinc-700 transition">
+                Tokyo
+              </button>
+              <button data-sample="kyoto" class="sample-btn px-3 py-2 rounded bg-card border border-border text-zinc-400 font-mono text-xs font-semibold text-center hover:border-zinc-700 transition">
+                Kyoto
+              </button>
+            </div>
+          </div>
+
+          <!-- Metadata Checklist -->
+          <div class="rounded border border-border bg-card p-4 space-y-3 font-mono text-xs">
+            <div class="text-mutedFg uppercase font-bold tracking-wider">Metadata Tags (Optional Checkboxes):</div>
+            <label class="flex items-center gap-2 text-zinc-300 cursor-pointer">
+              <input type="checkbox" id="check-loc" checked class="accent-accent w-4 h-4 rounded">
+              <span>Append 📍 Location Tag</span>
+            </label>
+            <label class="flex items-center gap-2 text-zinc-300 cursor-pointer">
+              <input type="checkbox" id="check-cam" checked class="accent-accent w-4 h-4 rounded">
+              <span>Append 📷 Camera & Lens Specs</span>
+            </label>
+            <label class="flex items-center gap-2 text-zinc-300 cursor-pointer">
+              <input type="checkbox" id="check-exp" checked class="accent-accent w-4 h-4 rounded">
+              <span>Append ⚙️ Exposure Settings</span>
+            </label>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex items-center gap-4">
+            <a href="/app/" class="btn-primary w-full text-center">
+              Open Full Studio Workstation →
+            </a>
+          </div>
+        </div>
+
+        <!-- Simulated Telegram Chat Bubble (Accurate Client Mockup) -->
+        <div class="rounded-xl border border-zinc-700 bg-slate-900 p-5 space-y-3 shadow-xl">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2 text-xs font-mono text-slate-400">
+            <span class="flex items-center gap-2 font-bold text-slate-200">
+              <span class="w-2.5 h-2.5 rounded-full bg-telegram"></span>
+              post pic dazz Channel
+            </span>
+            <span>15:42</span>
+          </div>
+
+          <!-- Bubble Media Thumbnail -->
+          <div class="aspect-video rounded bg-slate-950 border border-slate-800 flex items-center justify-center relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent"></div>
+            <p id="demo-photo-title" class="font-mono text-xs text-slate-400 z-10">DSC08921.ARW · 35mm f/2.8</p>
+          </div>
+
+          <!-- Formatted Message Body -->
+          <div class="space-y-2 text-sm text-slate-100 font-sans leading-relaxed">
+            <p id="demo-caption-text">Sunset fog rolling through the Golden Gate Bridge at dusk.</p>
+            <div id="demo-tags" class="font-mono text-xs text-sky-400 space-y-0.5 border-t border-slate-800 pt-2">
+              <p id="tag-loc">📍 San Francisco, California, USA</p>
+              <p id="tag-cam">📷 Sony A7 IV • FE 24-70mm F2.8 GM</p>
+              <p id="tag-exp">⚙️ 35mm | f/2.8 | 1/250s | ISO 100</p>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+            <span>HTML Parse Mode</span>
+            <span class="text-ok">✓ 318 / 1024 chars</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Reference Section -->
+    <section id="api-title" class="reveal space-y-6">
+      <div class="space-y-2">
+        <p class="font-mono text-xs uppercase tracking-widest text-accent font-semibold">Developer Interface</p>
+        <h2 class="text-2xl font-extrabold text-white">Command-Line & REST API</h2>
+        <p class="text-zinc-400 max-w-xl">Fully scriptable via standard HTTP multipart requests. No complex OAuth handshakes.</p>
+      </div>
+
+      <div class="rounded-lg border border-border bg-card p-4 sm:p-6 font-mono text-xs text-zinc-300 space-y-4 overflow-x-auto">
+        <div class="space-y-1">
+          <p class="text-zinc-500 font-bold"># 1. Ingest photo with parallel EXIF extraction</p>
+          <p class="text-accent">curl -X POST http://localhost:8000/api/v1/photos/upload \</p>
+          <p class="pl-4 text-zinc-300">-F "file=@DSC08921.jpg" \</p>
+          <p class="pl-4 text-zinc-300">-F "caption=Sunset at the coast" \</p>
+          <p class="pl-4 text-zinc-300">-F "destinations=telegram"</p>
+        </div>
+        <div class="space-y-1 border-t border-zinc-800 pt-3">
+          <p class="text-zinc-500 font-bold"># 2. Trigger instant Telegram dispatch</p>
+          <p class="text-accent">curl -X POST http://localhost:8000/api/v1/photos/1/publish</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Final Climax CTA Banner -->
+    <section class="reveal rounded-xl border border-accent/40 bg-gradient-to-r from-red-950/40 via-card to-card p-8 sm:p-12 text-center space-y-6">
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-white">Ready to streamline your photo drops?</h2>
+      <p class="text-zinc-400 max-w-xl mx-auto">Zero tunnels. Precision EXIF metadata. One-click Telegram publishing.</p>
+      <div class="flex items-center justify-center gap-4">
+        <a href="/app/" class="btn-primary text-base !px-8">
+          Open Studio Workstation →
+        </a>
+      </div>
+    </section>
+
   </main>
 
-  <footer class="footer">Sabbalens v1.0</footer>
+  <!-- Minimal Footer -->
+  <footer class="border-t border-border py-8 text-center text-xs font-mono text-zinc-500 space-y-2">
+    <p>Sabbalens v2.1.0 — Every frame, placed.</p>
+    <p>Powered by FastAPI · PostgreSQL · Leaflet · Telegram Bot API</p>
+  </footer>
 
   <script src="app.js"></script>
 </body>

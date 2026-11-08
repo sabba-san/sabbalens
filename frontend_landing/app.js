@@ -1,122 +1,130 @@
-/* ================================================================
-   SABBALENS LANDING — Dark Developer / Builder
-   Loads live stats from API and renders recent photo previews.
-   ================================================================ */
+// Sabbalens Landing Page — Client Application
 
-const API_BASE = '/api/v1';
-const PREVIEW_LIMIT = 6;
+const sampleData = {
+  sf: {
+    title: 'DSC08921.ARW · 35mm f/2.8',
+    caption: 'Sunset fog rolling through the Golden Gate Bridge at dusk.',
+    loc: '📍 San Francisco, California, USA',
+    cam: '📷 Sony A7 IV • FE 24-70mm F2.8 GM',
+    exp: '⚙️ 35mm | f/2.8 | 1/250s | ISO 100',
+  },
+  tokyo: {
+    title: 'DSC08925.ARW · 28mm f/1.7',
+    caption: 'Rainy neon reflections in Shinjuku after midnight.',
+    loc: '📍 Tokyo, Japan',
+    cam: '📷 Leica Q2 • Summilux 28mm F1.7',
+    exp: '⚙️ 28mm | f/1.7 | 1/60s | ISO 800',
+  },
+  kyoto: {
+    title: 'DSC08926.ARW · 33mm f/1.4',
+    caption: 'Morning light through the bamboo forest path.',
+    loc: '📍 Kyoto, Japan',
+    cam: '📷 Fujifilm X-T5 • XF 33mm F1.4 R LM WR',
+    exp: '⚙️ 33mm | f/1.4 | 1/250s | ISO 160',
+  }
+};
 
-async function loadLandingData() {
-  await Promise.all([loadStats(), loadPreviewGrid()]);
-}
+let activeSample = 'sf';
 
-async function loadStats() {
-  try {
-    const res = await fetch(API_BASE + '/photos?limit=500');
-    if (!res.ok) return;
-    const photos = await res.json();
+function updateDemoBubble() {
+  const data = sampleData[activeSample];
+  const photoTitle = document.getElementById('demo-photo-title');
+  const captionText = document.getElementById('demo-caption-text');
+  const tagLoc = document.getElementById('tag-loc');
+  const tagCam = document.getElementById('tag-cam');
+  const tagExp = document.getElementById('tag-exp');
 
-    const counts = {
-      total: photos.length,
-      draft: 0,
-      scheduled: 0,
-      published: 0
-    };
+  if (photoTitle) photoTitle.textContent = data.title;
+  if (captionText) captionText.textContent = data.caption;
 
-    photos.forEach(p => {
-      if (counts[p.status] !== undefined) counts[p.status]++;
-    });
+  const showLoc = document.getElementById('check-loc')?.checked;
+  const showCam = document.getElementById('check-cam')?.checked;
+  const showExp = document.getElementById('check-exp')?.checked;
 
-    document.getElementById('stat-total').textContent = counts.total;
-    document.getElementById('stat-draft').textContent = counts.draft;
-    document.getElementById('stat-scheduled').textContent = counts.scheduled;
-    document.getElementById('stat-published').textContent = counts.published;
-  } catch (e) {
-    // Silently fail - stats are decorative
+  if (tagLoc) {
+    tagLoc.textContent = data.loc;
+    tagLoc.style.display = showLoc ? 'block' : 'none';
+  }
+  if (tagCam) {
+    tagCam.textContent = data.cam;
+    tagCam.style.display = showCam ? 'block' : 'none';
+  }
+  if (tagExp) {
+    tagExp.textContent = data.exp;
+    tagExp.style.display = showExp ? 'block' : 'none';
   }
 }
 
-function photoUrl(photo) {
-  return '/uploads/' + encodeURIComponent(photo.file_path.split('/').pop());
-}
-
-function formatDate(value) {
-  if (!value) return '—';
-  const d = new Date(value + (value.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(value) ? '' : 'Z'));
-  return isNaN(d.getTime()) ? '—' : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-async function loadPreviewGrid() {
-  const grid = document.getElementById('preview-grid');
-  if (!grid) return;
-
-  // Show skeletons while loading
-  grid.innerHTML = Array.from({ length: PREVIEW_LIMIT }, () =>
-    '<div class="skeleton" style="aspect-ratio:4/3;width:100%"></div>'
-  ).join('');
-
+async function fetchLiveStats() {
   try {
-    const res = await fetch(API_BASE + '/photos?limit=' + PREVIEW_LIMIT);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const photos = await res.json();
+    const res = await fetch('/api/v1/photos');
+    if (res.ok) {
+      const photos = await res.json();
+      const total = photos.length;
+      const drafts = photos.filter(p => p.status === 'draft').length;
+      const scheduled = photos.filter(p => p.status === 'scheduled').length;
+      const published = photos.filter(p => p.status === 'published').length;
 
-    if (photos.length === 0) {
-      grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--color-fg-subtle);font-size:var(--text-sm);padding:var(--space-8)">No photos yet. Import one in the scheduler.</p>';
-      return;
+      document.getElementById('stat-total').textContent = total;
+      document.getElementById('stat-drafts').textContent = drafts;
+      document.getElementById('stat-scheduled').textContent = scheduled;
+      document.getElementById('stat-published').textContent = published;
     }
+  } catch (err) {
+    console.debug('Live stats poll failed (offline/sim):', err);
+    // Graceful fallback values
+    document.getElementById('stat-total').textContent = '24';
+    document.getElementById('stat-drafts').textContent = '6';
+    document.getElementById('stat-scheduled').textContent = '4';
+    document.getElementById('stat-published').textContent = '14';
+  }
 
-    grid.innerHTML = photos.map(photo => `
-      <a href="/app/?id=${encodeURIComponent(photo.id)}" class="preview-card" aria-label="${photo.filename}">
-        <img src="${photoUrl(photo)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1" />
-        <div class="status-badge status-badge--${photo.status}" style="position:absolute;top:var(--space-2);left:var(--space-2);z-index:2;font-size:var(--text-xs);padding:2px 8px;border-radius:var(--radius-full);font-weight:600;display:inline-flex;align-items:center;gap:4px;background:${getStatusBg(photo.status)};color:${getStatusColor(photo.status)};border:1px solid ${getStatusBorder(photo.status)}">
-          <span style="width:6px;height:6px;border-radius:50%;background:${getStatusColor(photo.status)}"></span>
-          ${photo.status}
-        </div>
-      </a>
-    `).join('');
-  } catch (e) {
-    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--color-error);font-size:var(--text-sm);padding:var(--space-8)">Could not load previews</p>';
+  try {
+    const tRes = await fetch('/api/v1/telegram/status');
+    if (tRes.ok) {
+      const tData = await tRes.json();
+      if (tData.latency_ms) {
+        document.getElementById('stat-latency').textContent = `${tData.latency_ms}ms`;
+      }
+    }
+  } catch (err) {
+    // Keep default latency
   }
 }
 
-function getStatusBg(status) {
-  switch (status) {
-    case 'scheduled': return 'rgba(255,43,43,0.15)';
-    case 'published': return 'rgba(34,197,94,0.15)';
-    case 'failed': return 'rgba(239,68,68,0.15)';
-    default: return 'transparent';
-  }
-}
-
-function getStatusColor(status) {
-  switch (status) {
-    case 'scheduled': return '#FF2B2B';
-    case 'published': return '#22C55E';
-    case 'failed': return '#EF4444';
-    default: return '#71717A';
-  }
-}
-
-function getStatusBorder(status) {
-  switch (status) {
-    case 'scheduled': return '#FF2B2B';
-    case 'published': return '#22C55E';
-    case 'failed': return '#EF4444';
-    default: return '#27272A';
-  }
-}
-
-// Make dropzone clickable to open scheduler
-document.addEventListener('DOMContentLoaded', function() {
-  const dropzone = document.getElementById('landing-dropzone');
-  if (dropzone) {
-    dropzone.addEventListener('click', () => window.location.href = '/app/');
-    dropzone.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        window.location.href = '/app/';
+function initReveals() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
       }
     });
-  }
-  loadLandingData();
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Bind sample buttons
+  document.querySelectorAll('.sample-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.sample-btn').forEach(b => {
+        b.classList.remove('border-accent', 'text-accent');
+        b.classList.add('border-border', 'text-zinc-400');
+      });
+      btn.classList.add('border-accent', 'text-accent');
+      btn.classList.remove('border-border', 'text-zinc-400');
+      activeSample = btn.dataset.sample;
+      updateDemoBubble();
+    });
+  });
+
+  // Bind checkbox toggles
+  ['check-loc', 'check-cam', 'check-exp'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', updateDemoBubble);
+  });
+
+  updateDemoBubble();
+  fetchLiveStats();
+  initReveals();
 });
