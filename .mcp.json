@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "figcraft": {
+      "command": "/home/abbas/.gemini/antigravity/bin/figcraft-cli",
+      "args": [
+        "mcp",
+        "--attach",
+        "7979"
+      ]
+    }
+  }
+}

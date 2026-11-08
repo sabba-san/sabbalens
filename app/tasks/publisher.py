@@ -5,6 +5,7 @@ from app.core.database import SessionLocal
 from app.models.photo import Photo, PhotoStatus
 from app.services.scheduler import add_job, IntervalTrigger
 import app.services.social as social
+import app.services.telegram as telegram
 from app.services.storage import storage
 
 log = logging.getLogger(__name__)
@@ -38,17 +39,27 @@ def publish_scheduled_photos():
 
         for photo in due:
             try:
-                media_id = social.publish_to_instagram(
-                    image_url=storage.get_public_url(photo.file_path),
-                    caption=photo.caption or "",
-                    file_path=photo.file_path,
-                )
-                photo.instagram_media_id = media_id
+                dest = (photo.destinations or "telegram").lower()
+                if "instagram" in dest:
+                    media_id = social.publish_to_instagram(
+                        image_url=storage.get_public_url(photo.file_path),
+                        caption=photo.caption or "",
+                        file_path=photo.file_path,
+                    )
+                    photo.instagram_media_id = media_id
+                    log.info("published photo %s -> ig media %s", photo.id, media_id)
+                else:
+                    msg_id = telegram.publish_to_telegram(
+                        file_path=photo.file_path,
+                        photo_obj=photo,
+                    )
+                    photo.telegram_message_id = msg_id
+                    log.info("published photo %s -> telegram message %s", photo.id, msg_id)
+
                 photo.status = PhotoStatus.published
                 photo.published_at = now
-                log.info("published photo %s -> ig media %s", photo.id, media_id)
 
-            except social.InstagramError as exc:
+            except (telegram.TelegramError, social.InstagramError) as exc:
                 msg = str(exc)
                 if is_transient(msg):
                     log.warning("photo %s deferred: %s", photo.id, msg)

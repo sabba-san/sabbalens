@@ -30,6 +30,15 @@ class PhotoUpdate(BaseModel):
     scheduled_at: Optional[datetime] = None
     published_at: Optional[datetime] = None
     destinations: Optional[str] = None
+    location_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    camera: Optional[str] = None
+    lens: Optional[str] = None
+    focal_length: Optional[str] = None
+    exposure_time: Optional[str] = None
+    aperture: Optional[str] = None
+    iso: Optional[int] = None
 
 
 class PhotoRead(PhotoBase):
@@ -38,6 +47,7 @@ class PhotoRead(PhotoBase):
     scheduled_at: Optional[datetime] = None
     published_at: Optional[datetime] = None
     instagram_media_id: Optional[str] = None
+    telegram_message_id: Optional[str] = None
     created_at: datetime
 
     class Config:

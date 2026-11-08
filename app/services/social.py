@@ -1,17 +1,37 @@
 import logging
+import secrets
 from pathlib import Path
 
 import httpx
 
 from app.core.config import settings
+from app.services.telegram import (
+    TelegramError,
+    get_telegram_status,
+    publish_to_telegram,
+)
 
 log = logging.getLogger(__name__)
 GRAPH = "https://graph.facebook.com/v21.0"
-PUBLISHABLE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+PUBLISHABLE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 class InstagramError(RuntimeError):
-    """Raised when a publish cannot be completed."""
+    """Raised when an Instagram publish cannot be completed."""
+
+
+def get_social_status() -> dict:
+    """Return connection and mode status for social networks."""
+    has_creds = bool(settings.instagram_access_token and settings.instagram_business_account_id)
+    telegram_info = get_telegram_status()
+    return {
+        "telegram": telegram_info,
+        "instagram": {
+            "connected": has_creds,
+            "mode": "live" if has_creds else ("simulation" if settings.simulate_social_publish else "disconnected"),
+            "account_id": settings.instagram_business_account_id if has_creds else None,
+        },
+    }
 
 
 def publish_to_instagram(*, image_url: str, caption: str, file_path: str) -> str:
@@ -22,6 +42,10 @@ def publish_to_instagram(*, image_url: str, caption: str, file_path: str) -> str
     token = settings.instagram_access_token
     ig_id = settings.instagram_business_account_id
     if not token or not ig_id:
+        if settings.simulate_social_publish:
+            simulated_id = f"sim_ig_{secrets.token_hex(8)}"
+            log.info("Simulated Instagram publish for '%s' -> media id %s", file_path, simulated_id)
+            return simulated_id
         raise InstagramError(
             "Instagram not connected - set INSTAGRAM_ACCESS_TOKEN and "
             "INSTAGRAM_BUSINESS_ACCOUNT_ID in .env"

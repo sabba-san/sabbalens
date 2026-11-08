@@ -1,44 +1,50 @@
 /* ================================================================
-   SABBALENS v2.0 - Frontend Application (Tailwind preview at /v2/)
-   Vanilla JS, no framework dependencies. Same API as v1 (/api/v1).
-   Security: Uses textContent / createElement for DOM, no innerHTML.
-   DESIGN.md tokens expressed as Tailwind utilities; dynamic badges
-   are injected via badgeClasses() (Vercel-style 1px borders,
-   Linear dark contrast, Shadcn-dark defaults).
+   SABBALENS v2.1 - Studio Staging & Telegram Publisher Frontend
+   Vanilla JS, zero build steps.
+   Features:
+   - Interactive OpenStreetMap (Leaflet.js)
+   - Real-time Telegram WYSIWYG Message Simulator
+   - Multi-file Filmstrip Batch Upload
+   - Bulk Staggered Scheduling
+   - Keyboard Navigation (J/K, Arrows, Cmd+Enter)
    ================================================================ */
 
 const API_BASE = '/api/v1';
 
 let currentPhotoId = null;
-const DEFAULT_HASHTAGS = ['#landscape', '#photography', '#nature', '#travel', '#shotonsony'];
-const CAPTION_MAX = 2200;
+let currentPhoto = null;
+let allPhotos = [];
+let selectedPhotoIds = new Set();
+let mapInstance = null;
+let mapMarker = null;
+
+const CAPTION_MAX = 1024;
 const TOAST_DURATION_MS = 4000;
 
-
 /* ================================================================
-   TAILWIND BADGE HELPERS (replaces status-badge CSS classes)
+   BADGES & STATUS
    ================================================================ */
 
-const BADGE_BASE = 'inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ';
+const BADGE_BASE = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-mono font-medium ';
 const DOT_BASE = 'w-1.5 h-1.5 rounded-full ';
 
 function badgeClasses(status) {
   switch (status) {
     case 'scheduled':
-      return BADGE_BASE + 'text-accent bg-[rgba(255,43,43,0.15)]';
+      return BADGE_BASE + 'text-warn bg-[rgba(245,158,11,0.15)] border border-warn/30';
     case 'published':
-      return BADGE_BASE + 'text-ok bg-[rgba(34,197,94,0.15)]';
+      return BADGE_BASE + 'text-ok bg-[rgba(34,197,94,0.15)] border border-ok/30';
     case 'failed':
-      return BADGE_BASE + 'text-err bg-[rgba(239,68,68,0.15)]';
+      return BADGE_BASE + 'text-err bg-[rgba(239,68,68,0.15)] border border-err/30';
     case 'draft':
     default:
-      return BADGE_BASE + 'text-muted border border-line';
+      return BADGE_BASE + 'text-muted border border-line bg-bg/80';
   }
 }
 
 function dotClasses(status) {
   switch (status) {
-    case 'scheduled': return DOT_BASE + 'bg-accent';
+    case 'scheduled': return DOT_BASE + 'bg-warn';
     case 'published': return DOT_BASE + 'bg-ok';
     case 'failed': return DOT_BASE + 'bg-err';
     case 'draft':
@@ -46,33 +52,26 @@ function dotClasses(status) {
   }
 }
 
-/** Apply a status badge to an existing pill element (keeps dot span). */
 function setBadge(el, status, label) {
-  var safe = ['draft', 'scheduled', 'published', 'failed'].indexOf(status) !== -1 ? status : 'draft';
+  if (!el) return;
+  const safe = ['draft', 'scheduled', 'published', 'failed'].includes(status) ? status : 'draft';
   el.className = badgeClasses(safe);
   el.replaceChildren();
-  var dot = document.createElement('span');
+  const dot = document.createElement('span');
   dot.className = dotClasses(safe);
-  dot.setAttribute('aria-hidden', 'true');
-  var text = document.createElement('span');
+  const text = document.createElement('span');
   text.textContent = label || safe;
   el.appendChild(dot);
   el.appendChild(text);
 }
 
-
 /* ================================================================
-   TOAST NOTIFICATION SYSTEM
-   Replaces native alert() per security guidelines.
+   TOAST NOTIFICATIONS
    ================================================================ */
 
-/**
- * Shows a toast notification.
- * @param {string} message - The text message to display.
- * @param {'success'|'error'|'info'} type - Toast variant.
- */
-function showToast(message, type) {
+function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
+  if (!container) return;
 
   const toast = document.createElement('div');
   toast.className = 'toast toast--' + type;
@@ -89,13 +88,8 @@ function showToast(message, type) {
   toast.appendChild(text);
   container.appendChild(toast);
 
-  // Auto-dismiss
-  const timer = setTimeout(function () {
-    dismissToast(toast);
-  }, TOAST_DURATION_MS);
-
-  // Click to dismiss early
-  toast.addEventListener('click', function () {
+  const timer = setTimeout(() => dismissToast(toast), TOAST_DURATION_MS);
+  toast.addEventListener('click', () => {
     clearTimeout(timer);
     dismissToast(toast);
   });
@@ -103,709 +97,1038 @@ function showToast(message, type) {
 
 function dismissToast(el) {
   el.classList.add('toast--exiting');
-  el.addEventListener('animationend', function () {
-    el.remove();
-  }, { once: true });
+  el.addEventListener('animationend', () => el.remove(), { once: true });
 }
-
 
 /* ================================================================
-   URL & FETCH HELPERS
+   DATE & URL HELPERS
    ================================================================ */
 
-function getPhotoIdFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get('id');
-}
-
-async function fetchPhoto(id) {
-  try {
-    const res = await fetch(API_BASE + '/photos/' + encodeURIComponent(id));
-    if (!res.ok) throw new Error('Photo not found');
-    return await res.json();
-  } catch (e) {
-    console.error('Failed to fetch photo');
-    showToast('Could not load photo', 'error');
-    return null;
-  }
-}
-
-/**
- * The API returns naive UTC timestamps (no "Z"). Treat them as UTC so the
- * browser doesn't misread them as local time.
- */
 function parseServerDate(value) {
   if (!value) return null;
-  var hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
-  var d = new Date(hasTz ? value : value + 'Z');
+  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
+  const d = new Date(hasTz ? value : value + 'Z');
   return isNaN(d.getTime()) ? null : d;
 }
 
 function formatDate(value) {
-  var d = parseServerDate(value);
-  if (!d) return '\u2014';
+  const d = parseServerDate(value);
+  if (!d) return '—';
   return d.toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
+    month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
 }
 
 function photoUrl(photo) {
+  if (!photo || !photo.file_path) return '';
   return '/uploads/' + encodeURIComponent(photo.file_path.split('/').pop());
 }
 
+/* ================================================================
+   OPENSTREETMAP (LEAFLET INTEGRATION)
+   ================================================================ */
+
+function renderMap(lat, lon) {
+  const mapContainer = document.getElementById('photo-map');
+  const emptyPlaceholder = document.getElementById('map-empty-placeholder');
+  if (!mapContainer) return;
+
+  if (lat != null && lon != null && typeof L !== 'undefined') {
+    mapContainer.classList.remove('hidden');
+    if (emptyPlaceholder) emptyPlaceholder.classList.add('hidden');
+
+    if (!mapInstance) {
+      mapInstance = L.map('photo-map', {
+        zoomControl: false,
+        attributionControl: false,
+        scrollWheelZoom: false,
+      }).setView([lat, lon], 12);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+      }).addTo(mapInstance);
+
+      // Custom focus reticle pin icon
+      const reticleIcon = L.divIcon({
+        className: 'custom-reticle-marker',
+        html: '<div style="width:20px;height:20px;border:2px solid #FF2B2B;border-radius:50%;background:rgba(255,43,43,0.3);display:flex;align-items:center;justify-content:center;"><div style="width:6px;height:6px;background:#FAFAFA;border-radius:50%;"></div></div>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+
+      mapMarker = L.marker([lat, lon], { icon: reticleIcon }).addTo(mapInstance);
+    } else {
+      mapInstance.setView([lat, lon], 12);
+      if (mapMarker) mapMarker.setLatLng([lat, lon]);
+    }
+
+    setTimeout(() => {
+      if (mapInstance) mapInstance.invalidateSize();
+    }, 200);
+  } else {
+    mapContainer.classList.add('hidden');
+    if (emptyPlaceholder) emptyPlaceholder.classList.remove('hidden');
+  }
+}
 
 /* ================================================================
-   RENDER PHOTO
+   TELEGRAM CAPTION COMPOSITION & LIVE SIMULATOR
+   ================================================================ */
+
+function assembleTelegramCaption(photo) {
+  if (!photo) return document.getElementById('caption')?.value || '';
+  const userText = (document.getElementById('caption')?.value || '').trim();
+  const includeLoc = document.getElementById('toggle-location')?.checked;
+  const includeCam = document.getElementById('toggle-camera')?.checked;
+  const includeExp = document.getElementById('toggle-settings')?.checked;
+
+  const sections = [];
+  if (userText) sections.push(userText);
+
+  const metaLines = [];
+  if (includeLoc && photo.location_name) {
+    metaLines.push('📍 ' + photo.location_name);
+  }
+
+  if (includeCam && (photo.camera || photo.lens)) {
+    const parts = [];
+    if (photo.camera) parts.push(photo.camera);
+    if (photo.lens) parts.push(photo.lens);
+    metaLines.push('📷 ' + parts.join(' • '));
+  }
+
+  if (includeExp) {
+    const specs = [];
+    if (photo.focal_length) specs.push(photo.focal_length);
+    if (photo.aperture) specs.push('f/' + photo.aperture);
+    if (photo.exposure_time) specs.push(photo.exposure_time + 's');
+    if (photo.iso) specs.push('ISO ' + photo.iso);
+    if (specs.length) metaLines.push('⚙️ ' + specs.join(' | '));
+  }
+
+  if (metaLines.length) {
+    sections.push(metaLines.join('\n'));
+  }
+
+  return sections.join('\n\n');
+}
+
+function updateTelegramSimulator() {
+  const photo = currentPhoto;
+  const fullCaption = assembleTelegramCaption(photo);
+
+  // Update simulator elements
+  const captionEl = document.getElementById('tele-bubble-caption');
+  if (captionEl) {
+    captionEl.textContent = fullCaption || 'Your post caption and telemetry will appear here...';
+  }
+
+  const bubbleImg = document.getElementById('tele-bubble-img');
+  const noImg = document.getElementById('tele-bubble-noimg');
+  if (photo && photo.file_path) {
+    if (bubbleImg) {
+      bubbleImg.src = photoUrl(photo);
+      bubbleImg.style.display = 'block';
+    }
+    if (noImg) noImg.style.display = 'none';
+  } else {
+    if (bubbleImg) bubbleImg.style.display = 'none';
+    if (noImg) noImg.style.display = 'block';
+  }
+
+  // Update character count
+  const count = fullCaption.length;
+  const charEl = document.getElementById('char-count');
+  const wrapEl = document.getElementById('char-count-wrap');
+  if (charEl) charEl.textContent = count;
+  if (wrapEl) {
+    wrapEl.classList.remove('char-count--warn', 'char-count--over');
+    if (count > CAPTION_MAX) wrapEl.classList.add('char-count--over');
+    else if (count > CAPTION_MAX * 0.9) wrapEl.classList.add('char-count--warn');
+  }
+
+  const timeEl = document.getElementById('tele-bubble-time');
+  if (timeEl) {
+    const now = new Date();
+    timeEl.textContent = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  }
+}
+
+/* ================================================================
+   RENDER ACTIVE PHOTO IN STUDIO
    ================================================================ */
 
 function renderPhoto(photo) {
+  if (!photo) return;
   currentPhotoId = photo.id;
-  document.title = 'Sabbalens \u2014 ' + photo.filename;
+  currentPhoto = photo;
+  document.title = 'Sabbalens — ' + photo.filename;
 
-  // Show the image, hide the empty state
+  // Viewport
   const preview = document.getElementById('photo-preview');
-  preview.classList.remove('photo-preview--empty');
-  var emptyBlock = preview.querySelector('.grid.place-items-center');
-  if (emptyBlock) emptyBlock.style.display = 'none';
-
+  const emptyState = document.getElementById('stage-empty-state');
   const img = document.getElementById('photo-img');
-  img.src = photoUrl(photo);
-  img.alt = photo.filename;
-  img.style.display = 'block';
+  const fileInfo = document.getElementById('stage-file-info');
+  const filenameEl = document.getElementById('stage-filename');
 
-  // Location
-  document.getElementById('photo-location-name').textContent =
-    photo.location_name || 'Unknown Location';
+  if (emptyState) emptyState.style.display = 'none';
+  if (img) {
+    img.src = photoUrl(photo);
+    img.alt = photo.filename;
+    img.style.display = 'block';
+  }
+  if (fileInfo) fileInfo.classList.remove('hidden');
+  if (filenameEl) filenameEl.textContent = photo.filename;
 
-  // GPS
-  document.getElementById('photo-coords').textContent =
-    photo.latitude && photo.longitude
-      ? photo.latitude.toFixed(4) + '\u00B0, ' + photo.longitude.toFixed(4) + '\u00B0'
-      : 'No GPS data';
-
-  // Camera + Lens
-  document.getElementById('photo-camera').textContent = photo.camera || '\u2014';
-  document.getElementById('photo-lens').textContent = photo.lens || '\u2014';
-
-  // Exposure
-  document.getElementById('photo-settings').textContent =
-    photo.aperture && photo.exposure_time && photo.iso
-      ? photo.aperture + '  \u2022  ' + photo.exposure_time + '  \u2022  ISO ' + photo.iso
-      : '\u2014';
-
-  // Status badge (Tailwind utilities via helper)
+  // Status Badge
   setBadge(document.getElementById('photo-status'), photo.status);
 
-  // Caption (reset when switching between photos)
-  document.getElementById('caption').value = photo.caption || '';
-  updateCharCount();
+  // Location & Coords
+  const locEl = document.getElementById('photo-location-name');
+  if (locEl) locEl.textContent = photo.location_name || 'No location resolved';
+  const coordsEl = document.getElementById('photo-coords');
+  if (coordsEl) {
+    coordsEl.textContent = (photo.latitude && photo.longitude)
+      ? `${photo.latitude.toFixed(4)}°, ${photo.longitude.toFixed(4)}°`
+      : 'No GPS data in EXIF';
+  }
 
-  // Schedule (stored and shown in UTC, matching the "Time (UTC)" label)
-  var dt = parseServerDate(photo.scheduled_at);
+  // Map
+  renderMap(photo.latitude, photo.longitude);
+
+  // EXIF Telemetry
+  const camEl = document.getElementById('photo-camera');
+  if (camEl) camEl.textContent = photo.camera || '—';
+  const lensEl = document.getElementById('photo-lens');
+  if (lensEl) lensEl.textContent = photo.lens || '—';
+
+  const focalApertureEl = document.getElementById('photo-focal-aperture');
+  if (focalApertureEl) {
+    const f = photo.focal_length ? photo.focal_length : '';
+    const a = photo.aperture ? `f/${photo.aperture}` : '';
+    focalApertureEl.textContent = [f, a].filter(Boolean).join(' • ') || '—';
+  }
+
+  const shutterIsoEl = document.getElementById('photo-shutter-iso');
+  if (shutterIsoEl) {
+    const s = photo.exposure_time ? `${photo.exposure_time}s` : '';
+    const i = photo.iso ? `ISO ${photo.iso}` : '';
+    shutterIsoEl.textContent = [s, i].filter(Boolean).join(' • ') || '—';
+  }
+
+  // Banners
+  const schedBanner = document.getElementById('scheduled-banner');
+  const schedText = document.getElementById('scheduled-banner-text');
+  const pubBanner = document.getElementById('published-banner');
+  const pubText = document.getElementById('published-banner-text');
+  const pubMediaId = document.getElementById('published-media-id');
+
+  if (photo.status === 'scheduled') {
+    if (schedBanner) schedBanner.classList.remove('hidden');
+    if (schedText) {
+      schedText.textContent = `Scheduled for ${formatDate(photo.scheduled_at)} (UTC).`;
+    }
+    if (pubBanner) pubBanner.classList.add('hidden');
+  } else if (photo.status === 'published') {
+    if (pubBanner) pubBanner.classList.remove('hidden');
+    if (pubText) pubText.textContent = `Published on ${formatDate(photo.published_at)}`;
+    if (pubMediaId) {
+      pubMediaId.textContent = photo.telegram_message_id ? `Msg #${photo.telegram_message_id}` : '';
+    }
+    if (schedBanner) schedBanner.classList.add('hidden');
+  } else {
+    if (schedBanner) schedBanner.classList.add('hidden');
+    if (pubBanner) pubBanner.classList.add('hidden');
+  }
+
+  // Caption input
+  const captionInput = document.getElementById('caption');
+  if (captionInput) {
+    captionInput.value = photo.caption || '';
+  }
+
+  // Schedule date/time
+  const dt = parseServerDate(photo.scheduled_at);
   if (dt) {
-    var iso = dt.toISOString();
+    const iso = dt.toISOString();
     document.getElementById('schedule-date').value = iso.slice(0, 10);
     document.getElementById('schedule-time').value = iso.slice(11, 16);
+  } else {
+    document.getElementById('schedule-date').value = '';
+    document.getElementById('schedule-time').value = '';
   }
-}
 
+  // Update Telegram Simulator
+  updateTelegramSimulator();
+
+  // Highlight in filmstrip
+  updateFilmstripActive(photo.id);
+}
 
 /* ================================================================
-   CHAR COUNT
+   FILMSTRIP COMPONENT (QUEUE & BATCH UPLOAD)
    ================================================================ */
 
-function updateCharCount() {
-  var caption = document.getElementById('caption');
-  var count = caption.value.length;
-  var el = document.getElementById('char-count');
-  el.textContent = count;
+function renderFilmstrip() {
+  const container = document.getElementById('photo-filmstrip');
+  const countEl = document.getElementById('filmstrip-count');
+  if (!container) return;
 
-  // Remove previous state classes
-  el.classList.remove('char-count--warn', 'char-count--over');
-
-  if (count > CAPTION_MAX) {
-    el.classList.add('char-count--over');
-  } else if (count > CAPTION_MAX * 0.9) {
-    el.classList.add('char-count--warn');
-  }
-}
-
-
-/* ================================================================
-   HASHTAGS
-   ================================================================ */
-
-function generateHashtags(photo) {
-  var tags = new Set(DEFAULT_HASHTAGS);
-  if (photo.location_name) {
-    var loc = photo.location_name.toLowerCase().replace(/[^a-z0-9]+/g, '');
-    if (loc) tags.add('#' + loc);
-  }
-  if (photo.camera_make) {
-    var make = photo.camera_make.toLowerCase().replace(/[^a-z0-9]+/g, '');
-    if (make) tags.add('#' + make);
-  }
-  return Array.from(tags).slice(0, 10);
-}
-
-function renderHashtags(photo) {
-  var container = document.getElementById('hashtag-suggestions');
-  // Security: clear with replaceChildren, not innerHTML
   container.replaceChildren();
 
-  generateHashtags(photo).forEach(function (tag) {
-    var el = document.createElement('button');
-    el.type = 'button';
-    el.className = 'hashtag-chip';
-    el.textContent = tag;
-    el.addEventListener('click', function () {
-      var caption = document.getElementById('caption');
-      var val = caption.value.trim();
-      caption.value = val ? val + ' ' + tag : tag;
-      updateCharCount();
+  // Add "+ Upload" Tile
+  const addTile = document.createElement('div');
+  addTile.id = 'filmstrip-dropzone';
+  addTile.className = 'flex-shrink-0 w-20 h-20 rounded-md border border-dashed border-line hover:border-accent flex flex-col items-center justify-center text-xs text-muted cursor-pointer transition select-none bg-bg/50';
+  addTile.innerHTML = `
+    <span class="material-symbols-outlined text-[20px] text-accent">add_photo_alternate</span>
+    <span class="text-[10px] mt-0.5">+ Add</span>
+  `;
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.multiple = true;
+  fileInput.className = 'sr-only';
+  fileInput.addEventListener('change', (e) => handleFilesUpload(e.target.files));
+  addTile.appendChild(fileInput);
+  addTile.addEventListener('click', () => fileInput.click());
+  container.appendChild(addTile);
+
+  if (countEl) countEl.textContent = `${allPhotos.length} photos`;
+
+  // Render thumbnails
+  allPhotos.forEach((photo) => {
+    const card = document.createElement('div');
+    card.dataset.id = photo.id;
+    const isActive = photo.id === currentPhotoId;
+    card.className = `flex-shrink-0 w-20 h-20 rounded-md border overflow-hidden relative cursor-pointer group transition ${
+      isActive ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-muted'
+    }`;
+
+    const thumb = document.createElement('img');
+    thumb.src = photoUrl(photo);
+    thumb.alt = photo.filename;
+    thumb.className = 'w-full h-full object-cover';
+    card.appendChild(thumb);
+
+    // Status dot overlay
+    const dot = document.createElement('span');
+    dot.className = `absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${dotClasses(photo.status)} shadow`;
+    card.appendChild(dot);
+
+    card.addEventListener('click', () => {
+      renderPhoto(photo);
     });
-    container.appendChild(el);
+
+    container.appendChild(card);
   });
 }
 
+function updateFilmstripActive(activeId) {
+  const container = document.getElementById('photo-filmstrip');
+  if (!container) return;
+  container.querySelectorAll('div[data-id]').forEach((el) => {
+    if (el.dataset.id === String(activeId)) {
+      el.className = 'flex-shrink-0 w-20 h-20 rounded-md border border-accent ring-2 ring-accent/30 overflow-hidden relative cursor-pointer transition';
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    } else {
+      el.className = 'flex-shrink-0 w-20 h-20 rounded-md border border-line hover:border-muted overflow-hidden relative cursor-pointer transition';
+    }
+  });
+}
 
 /* ================================================================
-   API UPDATE
+   BATCH UPLOAD HANDLER
    ================================================================ */
 
-async function updatePhoto(patch) {
-  if (!currentPhotoId) {
-    showToast('Import or open a photo first', 'error');
-    return false;
+async function handleFilesUpload(files) {
+  if (!files || !files.length) return;
+  showToast(`Uploading ${files.length} photo(s)...`, 'info');
+
+  let successCount = 0;
+  for (const file of files) {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch(`${API_BASE}/photos/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (res.ok) {
+        successCount++;
+        const newPhoto = await res.json();
+        allPhotos.unshift(newPhoto);
+      }
+    } catch (e) {
+      console.error('Failed to upload file:', file.name, e);
+    }
   }
+
+  showToast(`Uploaded ${successCount} of ${files.length} photo(s).`, successCount > 0 ? 'success' : 'error');
+  await loadPhotos();
+  if (allPhotos.length > 0) {
+    renderPhoto(allPhotos[0]);
+  }
+}
+
+/* ================================================================
+   LOAD & MANAGE PHOTOS
+   ================================================================ */
+
+async function loadPhotos() {
   try {
-    var res = await fetch(API_BASE + '/photos/' + encodeURIComponent(currentPhotoId), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch)
-    });
-    if (!res.ok) throw new Error('Update failed');
-    var updated = await res.json();
-    renderPhoto(updated);
-    return true;
+    const res = await fetch(`${API_BASE}/photos?limit=200`);
+    if (!res.ok) return;
+    allPhotos = await res.json();
+    renderFilmstrip();
+    renderLibraryGrid();
   } catch (e) {
-    console.error('Failed to update photo');
-    showToast('Failed to update: ' + e.message, 'error');
-    return false;
+    console.error('Failed to load photos', e);
   }
 }
 
-
 /* ================================================================
-   DESTINATIONS
+   LIBRARY VIEW & BULK ACTIONS
    ================================================================ */
 
-function getSelectedDestinations() {
-  return Array.from(document.querySelectorAll('input[name="destination"]:checked'))
-    .map(function (cb) { return cb.value; });
-}
+function renderLibraryGrid() {
+  const grid = document.getElementById('photo-grid');
+  const empty = document.getElementById('library-empty');
+  const summary = document.getElementById('library-summary');
+  if (!grid) return;
 
+  grid.replaceChildren();
 
-/* ================================================================
-   SCHEDULE / PUBLISH
-   ================================================================ */
+  // Apply filters
+  const activeFilter = document.querySelector('#library-filters .filter-chip.active')?.dataset.status || 'all';
+  const searchTerm = (document.getElementById('library-search')?.value || '').toLowerCase().trim();
 
-async function handleSchedule() {
-  var date = document.getElementById('schedule-date').value;
-  var time = document.getElementById('schedule-time').value;
-  if (!date || !time) {
-    showToast('Please select both date and time', 'error');
-    return;
+  let filtered = allPhotos;
+  if (activeFilter !== 'all') {
+    filtered = filtered.filter(p => p.status === activeFilter);
+  }
+  if (searchTerm) {
+    filtered = filtered.filter(p =>
+      (p.filename && p.filename.toLowerCase().includes(searchTerm)) ||
+      (p.location_name && p.location_name.toLowerCase().includes(searchTerm)) ||
+      (p.camera && p.camera.toLowerCase().includes(searchTerm)) ||
+      (p.caption && p.caption.toLowerCase().includes(searchTerm))
+    );
   }
 
-  var scheduledAt = new Date(date + 'T' + time + ':00Z').toISOString();
-  var caption = document.getElementById('caption').value.trim();
-  var destinations = getSelectedDestinations();
-
-  if (destinations.length === 0) {
-    showToast('Select at least one destination', 'error');
-    return;
+  if (summary) {
+    summary.textContent = `Showing ${filtered.length} of ${allPhotos.length} total photos`;
   }
 
-  var ok = await updatePhoto({
-    caption: caption || null,
-    status: 'scheduled',
-    scheduled_at: scheduledAt,
-    destinations: destinations.join(',')
+  // Counts
+  const counts = { all: allPhotos.length, draft: 0, scheduled: 0, published: 0, failed: 0 };
+  allPhotos.forEach(p => { if (counts[p.status] !== undefined) counts[p.status]++; });
+  Object.keys(counts).forEach(k => {
+    const el = document.querySelector(`[data-count="${k}"]`);
+    if (el) el.textContent = counts[k];
   });
-  if (ok) showToast('Post scheduled successfully', 'success');
+
+  if (!filtered.length) {
+    if (empty) empty.classList.remove('hidden');
+    return;
+  }
+  if (empty) empty.classList.add('hidden');
+
+  filtered.forEach(photo => {
+    const card = document.createElement('div');
+    card.className = 'group relative rounded-lg border border-line bg-surface overflow-hidden flex flex-col hover:border-muted transition';
+
+    const isSelected = selectedPhotoIds.has(photo.id);
+
+    // Image container
+    const imgWrap = document.createElement('div');
+    imgWrap.className = 'relative h-44 bg-bg overflow-hidden cursor-pointer';
+    const img = document.createElement('img');
+    img.src = photoUrl(photo);
+    img.alt = photo.filename;
+    img.className = 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-200';
+    imgWrap.appendChild(img);
+
+    // Multi-select checkbox
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = isSelected;
+    cb.className = 'absolute top-2.5 left-2.5 w-4 h-4 accent-accent rounded z-10 cursor-pointer shadow';
+    cb.addEventListener('click', (e) => e.stopPropagation());
+    cb.addEventListener('change', (e) => {
+      if (e.target.checked) selectedPhotoIds.add(photo.id);
+      else selectedPhotoIds.delete(photo.id);
+      updateBulkActionBar();
+    });
+    imgWrap.appendChild(cb);
+
+    // Status pill
+    const statusPill = document.createElement('span');
+    statusPill.className = `absolute top-2.5 right-2.5 ${badgeClasses(photo.status)} shadow`;
+    statusPill.textContent = photo.status;
+    imgWrap.appendChild(statusPill);
+
+    imgWrap.addEventListener('click', () => {
+      renderPhoto(photo);
+      switchView('scheduler');
+    });
+
+    card.appendChild(imgWrap);
+
+    // Meta details footer
+    const info = document.createElement('div');
+    info.className = 'p-3 flex-1 flex flex-col justify-between text-xs space-y-1.5';
+    info.innerHTML = `
+      <div class="flex items-center justify-between font-mono text-[11px] text-muted">
+        <span class="truncate max-w-[140px] text-fg">${photo.filename}</span>
+        <span>${formatDate(photo.created_at)}</span>
+      </div>
+      <div class="flex items-center gap-1 text-muted text-[11px] truncate">
+        <span class="material-symbols-outlined text-[13px] text-accent">pin_drop</span>
+        <span>${photo.location_name || 'No location'}</span>
+      </div>
+    `;
+
+    card.appendChild(info);
+    grid.appendChild(card);
+  });
 }
 
-async function handlePublishNow() {
+function updateBulkActionBar() {
+  const bar = document.getElementById('bulk-action-bar');
+  const countEl = document.getElementById('bulk-selected-count');
+  if (!bar) return;
+
+  const count = selectedPhotoIds.size;
+  if (count > 0) {
+    bar.classList.remove('hidden');
+    if (countEl) countEl.textContent = count;
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+/* ================================================================
+   PUBLISHING & SCHEDULING LOGIC
+   ================================================================ */
+
+async function publishNow() {
   if (!currentPhotoId) {
-    showToast('Import or open a photo first', 'error');
+    showToast('Select a photo first', 'error');
     return;
   }
 
-  var caption = document.getElementById('caption').value.trim();
-  var destinations = getSelectedDestinations();
+  const btn = document.getElementById('publish-now-btn');
+  if (btn) btn.disabled = true;
 
-  if (destinations.length === 0) {
-    showToast('Select at least one destination', 'error');
-    return;
-  }
-
-  var btn = document.getElementById('publish-now-btn');
-  btn.disabled = true;
-  var originalHTML = btn.innerHTML;
-  btn.textContent = 'Publishing...';
+  const finalCaption = assembleTelegramCaption(currentPhoto);
 
   try {
-    var res = await fetch(API_BASE + '/photos/' + encodeURIComponent(currentPhotoId) + '/publish', {
+    const res = await fetch(`${API_BASE}/photos/${currentPhotoId}/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        caption: caption || null,
-        destinations: destinations.join(',')
-      })
+        caption: finalCaption,
+        destinations: 'telegram',
+      }),
     });
-
-    if (res.status === 409) {
-      showToast('This photo is already published', 'error');
-      return;
-    }
-
-    var data = await res.json();
 
     if (!res.ok) {
-      showToast('Publish failed: ' + (data.detail || 'Unknown error'), 'error');
+      const err = await res.json();
+      showToast(`Publish failed: ${err.detail || 'Error'}`, 'error');
       return;
     }
 
+    const data = await res.json();
     renderPhoto(data);
-    showToast('Published successfully!', 'success');
+    await loadPhotos();
+
+    const isSim = (data.telegram_message_id && data.telegram_message_id.startsWith('sim_tele_'));
+    const mid = data.telegram_message_id ? `#${data.telegram_message_id}` : '';
+    showToast(isSim ? `Published! (Simulation: ${mid})` : `Published successfully to Telegram! ${mid}`, 'success');
   } catch (e) {
-    console.error('Failed to publish', e);
+    console.error('Publish error', e);
     showToast('Network error during publish', 'error');
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalHTML;
+    if (btn) btn.disabled = false;
   }
 }
 
+async function schedulePost() {
+  if (!currentPhotoId) {
+    showToast('Select a photo first', 'error');
+    return;
+  }
 
-/* ================================================================
-   IMPORT / UPLOAD
-   ================================================================ */
+  const dateVal = document.getElementById('schedule-date').value;
+  const timeVal = document.getElementById('schedule-time').value;
 
-function openImportDialog() {
-  document.getElementById('import-dialog').showModal();
-}
+  if (!dateVal || !timeVal) {
+    showToast('Please set both date and time (UTC)', 'error');
+    return;
+  }
 
-async function handleImport(file) {
-  var formData = new FormData();
-  formData.append('file', file);
-
-  showToast('Uploading ' + file.name + '...', 'info');
+  const isoString = `${dateVal}T${timeVal}:00Z`;
+  const finalCaption = assembleTelegramCaption(currentPhoto);
 
   try {
-    var res = await fetch(API_BASE + '/photos/upload', {
-      method: 'POST',
-      body: formData
+    const res = await fetch(`${API_BASE}/photos/${currentPhotoId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        caption: finalCaption,
+        destinations: 'telegram',
+        status: 'scheduled',
+        scheduled_at: isoString,
+      }),
     });
-    if (!res.ok) throw new Error('Upload failed');
-    var photo = await res.json();
-    showToast('Photo imported!', 'success');
-    // Navigate to the new photo after a short delay for the toast to show
-    setTimeout(function () {
-      window.location.href = '/v2/?id=' + encodeURIComponent(photo.id);
-    }, 800);
+
+    if (!res.ok) {
+      const err = await res.json();
+      showToast(`Schedule failed: ${err.detail || 'Error'}`, 'error');
+      return;
+    }
+
+    const data = await res.json();
+    renderPhoto(data);
+    await loadPhotos();
+    showToast(`Post scheduled for ${formatDate(data.scheduled_at)} (UTC)`, 'success');
   } catch (e) {
-    console.error('Upload failed');
-    showToast('Upload failed: ' + e.message, 'error');
+    console.error('Schedule error', e);
+    showToast('Network error while scheduling', 'error');
   }
 }
 
-
 /* ================================================================
-   DRAG & DROP
+   PRESET SCHEDULER BUTTONS
    ================================================================ */
 
-function setupDragDrop() {
-  // Prevent default on the whole document to avoid browser file-open
-  document.addEventListener('dragover', function (e) { e.preventDefault(); });
-  document.addEventListener('drop', function (e) { e.preventDefault(); });
+function applyPreset(preset) {
+  const now = new Date();
+  let target = new Date();
 
-  // Main preview dropzone
-  attachDropzone('photo-preview');
+  if (preset === '1h') {
+    target.setHours(target.getHours() + 1);
+  } else if (preset === 'tonight') {
+    target.setUTCHours(20, 0, 0, 0);
+    if (target < now) target.setUTCDate(target.getUTCDate() + 1);
+  } else if (preset === 'tomorrow') {
+    target.setUTCDate(target.getUTCDate() + 1);
+    target.setUTCHours(9, 0, 0, 0);
+  }
 
-  // Import dialog dropzone
-  attachDropzone('import-dropzone');
+  const iso = target.toISOString();
+  document.getElementById('schedule-date').value = iso.slice(0, 10);
+  document.getElementById('schedule-time').value = iso.slice(11, 16);
+  showToast(`Preset applied: ${target.toUTCString().slice(0, 22)} UTC`, 'info');
 }
-
-function attachDropzone(id) {
-  var el = document.getElementById(id);
-  if (!el) return;
-
-  var dragCounter = 0;
-
-  el.addEventListener('dragenter', function (e) {
-    e.preventDefault();
-    dragCounter++;
-    el.classList.add('drag-over');
-  });
-
-  el.addEventListener('dragleave', function (e) {
-    e.preventDefault();
-    dragCounter--;
-    if (dragCounter <= 0) {
-      dragCounter = 0;
-      el.classList.remove('drag-over');
-    }
-  });
-
-  el.addEventListener('dragover', function (e) {
-    e.preventDefault();
-  });
-
-  el.addEventListener('drop', function (e) {
-    e.preventDefault();
-    dragCounter = 0;
-    el.classList.remove('drag-over');
-
-    var files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type.startsWith('image/')) {
-      handleImport(files[0]);
-    } else {
-      showToast('Please drop an image file', 'error');
-    }
-  });
-
-  // Click on dropzone triggers file input
-  el.addEventListener('click', function () {
-    var fileInput = el.querySelector('input[type="file"]');
-    if (fileInput) fileInput.click();
-  });
-
-  // Keyboard: Enter/Space triggers file input
-  el.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      var fileInput = el.querySelector('input[type="file"]');
-      if (fileInput) fileInput.click();
-    }
-  });
-}
-
 
 /* ================================================================
-   VIEWS / NAV TABS
-   Hash-based so views are linkable: /v2/#library, /v2/#settings
+   TELEGRAM BOT STATUS & SETTINGS
    ================================================================ */
 
-var VIEWS = ['scheduler', 'library', 'settings'];
+async function loadSocialStatus() {
+  const headerPill = document.getElementById('header-bot-pill');
+  const headerLabel = document.getElementById('header-bot-label');
+  const headerDot = document.getElementById('header-bot-dot');
+  const settingsTele = document.getElementById('settings-telegram');
+  const targetEl = document.getElementById('settings-telegram-target');
+  const composerTag = document.getElementById('composer-chat-tag');
 
-function showView(name) {
-  if (VIEWS.indexOf(name) === -1) name = 'scheduler';
+  try {
+    const res = await fetch(`${API_BASE}/telegram/status`);
+    if (!res.ok) return;
+    const tele = await res.json();
 
-  document.querySelectorAll('.tab').forEach(function (t) {
-    var active = t.dataset.view === name;
-    t.classList.toggle('active', active);
-    t.setAttribute('aria-selected', active ? 'true' : 'false');
-  });
-  VIEWS.forEach(function (v) {
-    document.getElementById('view-' + v).hidden = v !== name;
-  });
+    if (tele.mode === 'live') {
+      if (headerPill) headerPill.classList.remove('hidden');
+      if (headerLabel) headerLabel.textContent = `@${tele.bot_username || 'bot'}`;
+      if (headerDot) headerDot.className = 'w-2 h-2 rounded-full bg-ok animate-pulse';
 
-  if (name === 'library') loadLibrary();
-  if (name === 'settings') loadSettings();
-}
-
-function setupTabs() {
-  document.querySelectorAll('.tab').forEach(function (tab) {
-    tab.addEventListener('click', function () {
-      // Updating the hash triggers showView via the hashchange listener
-      if (window.location.hash === '#' + tab.dataset.view) {
-        showView(tab.dataset.view);
-      } else {
-        window.location.hash = tab.dataset.view;
+      if (composerTag) {
+        composerTag.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-ok"></span><span>${tele.chat_id || 'post pic dazz'}</span>`;
       }
-    });
-  });
-  window.addEventListener('hashchange', function () {
-    showView(window.location.hash.slice(1));
-  });
-}
 
+      if (targetEl && tele.chat_id) {
+        targetEl.textContent = `Target: ${tele.chat_id}`;
+      }
 
-/* ================================================================
-   LIBRARY (Tailwind cards - same data flow as v1)
-   ================================================================ */
+      if (settingsTele) {
+        settingsTele.className = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-ok bg-ok/10 border border-ok/30';
+        settingsTele.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-ok"></span><span>connected (@${tele.bot_username || 'live'})</span>`;
+      }
+    } else if (tele.mode === 'simulation') {
+      if (headerPill) headerPill.classList.remove('hidden');
+      if (headerLabel) headerLabel.textContent = 'Simulation Mode';
+      if (headerDot) headerDot.className = 'w-2 h-2 rounded-full bg-warn';
 
-var libraryPhotos = [];
-var libraryFilter = 'all';
-var STATUS_LABELS = { draft: 'draft', scheduled: 'scheduled', published: 'published', failed: 'failed' };
-
-async function loadLibrary() {
-  var summary = document.getElementById('library-summary');
-  summary.textContent = 'Loading\u2026';
-  try {
-    var res = await fetch(API_BASE + '/photos?limit=500');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    libraryPhotos = await res.json();
+      if (settingsTele) {
+        settingsTele.className = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-warn bg-warn/10 border border-warn/30';
+        settingsTele.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-warn"></span><span>simulation mode (testing ready)</span>';
+      }
+    } else {
+      if (settingsTele) {
+        settingsTele.className = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-err bg-err/10 border border-err/30';
+        settingsTele.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-err"></span><span>not connected</span>';
+      }
+    }
   } catch (e) {
-    console.error('Failed to load library');
-    summary.textContent = 'Could not load photos from the server.';
-    showToast('Could not load library', 'error');
-    return;
+    console.error('Failed to load telegram status', e);
   }
-  updateFilterCounts();
-  renderLibrary();
 }
-
-function updateFilterCounts() {
-  var counts = { all: libraryPhotos.length, draft: 0, scheduled: 0, published: 0, failed: 0 };
-  libraryPhotos.forEach(function (p) {
-    if (counts[p.status] !== undefined) counts[p.status]++;
-  });
-  document.querySelectorAll('[data-count]').forEach(function (el) {
-    el.textContent = counts[el.dataset.count] || 0;
-  });
-  var summary = document.getElementById('library-summary');
-  summary.textContent = counts.all === 1
-    ? '1 photo uploaded'
-    : counts.all + ' photos uploaded';
-}
-
-function renderLibrary() {
-  var grid = document.getElementById('photo-grid');
-  var empty = document.getElementById('library-empty');
-  var emptyText = document.getElementById('library-empty-text');
-  grid.replaceChildren();
-
-  var photos = libraryFilter === 'all'
-    ? libraryPhotos
-    : libraryPhotos.filter(function (p) { return p.status === libraryFilter; });
-
-  if (photos.length === 0) {
-    emptyText.textContent = libraryFilter === 'all'
-      ? 'No photos yet.'
-      : 'No ' + libraryFilter + ' photos.';
-    empty.hidden = false;
-    empty.classList.remove('hidden');
-    return;
-  }
-  empty.hidden = true;
-  empty.classList.add('hidden');
-
-  photos.forEach(function (photo, i) {
-    grid.appendChild(buildPhotoCard(photo, i));
-  });
-}
-
-function buildMetaRow(icon, text, mono) {
-  var row = document.createElement('div');
-  row.className = 'flex items-center gap-2 text-xs text-muted' + (mono ? ' font-mono' : '');
-  var ic = document.createElement('span');
-  ic.className = 'material-symbols-outlined text-[16px]';
-  ic.setAttribute('aria-hidden', 'true');
-  ic.textContent = icon;
-  var tx = document.createElement('span');
-  tx.className = 'truncate';
-  tx.textContent = text;
-  row.appendChild(ic);
-  row.appendChild(tx);
-  return row;
-}
-
-function buildPhotoCard(photo, index) {
-  var card = document.createElement('button');
-  card.type = 'button';
-  card.className = 'v2-card-enter text-left rounded-md border border-line bg-surface p-4 grid gap-3 hover:border-muted transition shadow-[0_1px_2px_rgba(0,0,0,0.3)] focus-visible:shadow-focus';
-  card.id = 'photo-card-' + photo.id;
-  card.style.animationDelay = Math.min(index * 40, 400) + 'ms';
-  card.setAttribute('aria-label', 'Open ' + photo.filename + ' (' + photo.status + ')');
-
-  var thumb = document.createElement('div');
-  thumb.className = 'overflow-hidden rounded-sm aspect-[4/3] bg-bg';
-  var img = document.createElement('img');
-  img.src = photoUrl(photo);
-  img.alt = '';
-  img.loading = 'lazy';
-  img.className = 'w-full h-full object-cover';
-  thumb.appendChild(img);
-
-  // Badge lives in the caption row below the photo, never overlaid on it.
-  var badge = document.createElement('span');
-  var status = STATUS_LABELS[photo.status] ? photo.status : 'draft';
-  badge.className = badgeClasses(status) + ' shrink-0';
-  var dot = document.createElement('span');
-  dot.className = dotClasses(status);
-  dot.setAttribute('aria-hidden', 'true');
-  var label = document.createElement('span');
-  label.textContent = photo.status;
-  badge.replaceChildren();
-  badge.appendChild(dot);
-  badge.appendChild(label);
-
-  var body = document.createElement('div');
-  body.className = 'grid gap-1.5 min-w-0';
-  var topline = document.createElement('div');
-  topline.className = 'flex items-center justify-between gap-2 min-w-0';
-  var title = document.createElement('div');
-  title.className = 'text-sm font-medium truncate';
-  title.textContent = photo.filename;
-  topline.appendChild(title);
-  topline.appendChild(badge);
-  body.appendChild(topline);
-  body.appendChild(buildMetaRow('location_on', photo.location_name || 'Unknown location'));
-  body.appendChild(buildMetaRow('upload', 'Uploaded ' + formatDate(photo.created_at), true));
-  // Monospaced GPS coordinates (dashboard requirement)
-  var gps = (photo.latitude != null && photo.longitude != null)
-    ? photo.latitude.toFixed(4) + '\u00B0, ' + photo.longitude.toFixed(4) + '\u00B0'
-    : 'No GPS data';
-  body.appendChild(buildMetaRow('gps_fixed', gps, true));
-  if (photo.status === 'scheduled' && photo.scheduled_at) {
-    body.appendChild(buildMetaRow('schedule', 'Scheduled ' + formatDate(photo.scheduled_at), true));
-  }
-  if (photo.status === 'published' && photo.published_at) {
-    body.appendChild(buildMetaRow('send', 'Published ' + formatDate(photo.published_at), true));
-  }
-
-  card.appendChild(thumb);
-  card.appendChild(body);
-  card.addEventListener('click', function () { openPhoto(photo.id); });
-  return card;
-}
-
-function setupLibraryFilters() {
-  document.querySelectorAll('.filter-chip').forEach(function (chip) {
-    chip.addEventListener('click', function () {
-      libraryFilter = chip.dataset.status;
-      document.querySelectorAll('.filter-chip').forEach(function (c) {
-        c.classList.toggle('active', c === chip);
-        c.setAttribute('aria-pressed', c === chip ? 'true' : 'false');
-      });
-      renderLibrary();
-    });
-  });
-}
-
-/** Open a photo from the library in the scheduler view. */
-async function openPhoto(id) {
-  var photo = await fetchPhoto(id);
-  if (!photo) return;
-  renderPhoto(photo);
-  renderHashtags(photo);
-  history.replaceState(null, '', '/v2/?id=' + encodeURIComponent(id) + '#scheduler');
-  showView('scheduler');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-
-/* ================================================================
-   SETTINGS (includes Instagram connect state for OAuth)
-   ================================================================ */
 
 async function loadSettings() {
-  var apiEl = document.getElementById('settings-api');
-  var countEl = document.getElementById('settings-count');
+  const apiEl = document.getElementById('settings-api');
+  const countEl = document.getElementById('settings-count');
+
   try {
-    var res = await fetch('/health');
-    var ok = res.ok && (await res.json()).status === 'ok';
+    const res = await fetch('/health');
+    const ok = res.ok && (await res.json()).status === 'ok';
     setBadge(apiEl, ok ? 'published' : 'failed', ok ? 'online' : 'error');
   } catch (e) {
     setBadge(apiEl, 'failed', 'offline');
   }
-  try {
-    var r = await fetch(API_BASE + '/photos?limit=500');
-    countEl.textContent = r.ok ? String((await r.json()).length) : '\u2014';
-  } catch (e) {
-    countEl.textContent = '\u2014';
-  }
 
-  // OAuth redirect lands at /v2/#settings?ig=connected (or ?ig=connected).
-  // Flip the Instagram badge without a backend call.
-  try {
-    var params = new URLSearchParams(window.location.search);
-    if (params.get('ig') === 'connected') {
-      var igEl = document.getElementById('settings-ig');
-      if (igEl) setBadge(igEl, 'published', 'connected');
-    }
-  } catch (e) { /* ignore */ }
+  if (countEl) countEl.textContent = allPhotos.length ? String(allPhotos.length) : '0';
+
+  await loadSocialStatus();
+
+  // Test ping button handler
+  const testBtn = document.getElementById('settings-telegram-test');
+  if (testBtn && !testBtn.dataset.bound) {
+    testBtn.dataset.bound = 'true';
+    testBtn.onclick = async () => {
+      testBtn.disabled = true;
+      testBtn.textContent = 'Pinging...';
+      const start = Date.now();
+      try {
+        const r = await fetch(`${API_BASE}/telegram/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: '🔔 Sabbalens studio connection ping: healthy!' }),
+        });
+        const resData = await r.json();
+        const latency = Date.now() - start;
+        if (r.ok) {
+          showToast(resData.simulated ? 'Test ping simulated (OK)!' : `Test message sent to Telegram! (${latency}ms)`, 'success');
+        } else {
+          showToast(`Ping failed: ${resData.detail || 'Error'}`, 'error');
+        }
+      } catch (err) {
+        showToast('Network error sending test ping', 'error');
+      } finally {
+        testBtn.disabled = false;
+        testBtn.textContent = 'Send Test Ping';
+      }
+    };
+  }
 }
 
-
 /* ================================================================
-   INIT
+   VIEW NAVIGATION TABS
    ================================================================ */
 
-function init() {
-  setupTabs();
-  setupLibraryFilters();
-  setupDragDrop();
+function switchView(viewName) {
+  document.querySelectorAll('header nav button').forEach(btn => {
+    const isActive = btn.dataset.view === viewName;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', String(isActive));
+  });
 
-  document.getElementById('library-refresh').addEventListener('click', loadLibrary);
-  document.getElementById('library-import-btn').addEventListener('click', openImportDialog);
+  document.querySelectorAll('main .view').forEach(panel => {
+    panel.hidden = panel.id !== `view-${viewName}`;
+  });
 
-  // Initial view from URL hash (e.g. /v2/#library)
-  showView(window.location.hash.slice(1) || 'scheduler');
+  if (viewName === 'scheduler') {
+    setTimeout(() => {
+      if (mapInstance) mapInstance.invalidateSize();
+    }, 200);
+  } else if (viewName === 'library') {
+    renderLibraryGrid();
+  } else if (viewName === 'settings') {
+    loadSettings();
+  }
+}
 
-  var photoId = getPhotoIdFromUrl();
-  if (photoId) {
-    fetchPhoto(photoId).then(function (photo) {
-      if (photo) {
-        renderPhoto(photo);
-        renderHashtags(photo);
+/* ================================================================
+   EVENT LISTENERS & INITIALIZATION
+   ================================================================ */
+
+function setupEventListeners() {
+  // Navigation tabs
+  document.querySelectorAll('header nav button').forEach(btn => {
+    btn.addEventListener('click', () => switchView(btn.dataset.view));
+  });
+
+  // Header and Stage Import buttons
+  const importDialog = document.getElementById('import-dialog');
+  const importSubmit = document.getElementById('import-submit');
+  const importFile = document.getElementById('import-file');
+  const importCancel = document.getElementById('import-cancel');
+
+  ['header-import-btn', 'import-btn', 'library-import-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', () => importDialog?.showModal());
+  });
+
+  if (importFile) {
+    importFile.addEventListener('change', () => {
+      if (importSubmit) importSubmit.disabled = !importFile.files.length;
+    });
+  }
+
+  if (importSubmit) {
+    importSubmit.addEventListener('click', async () => {
+      importDialog.close();
+      await handleFilesUpload(importFile.files);
+      importFile.value = '';
+    });
+  }
+
+  if (importCancel) {
+    importCancel.addEventListener('click', () => importDialog.close());
+  }
+
+  // Drag & drop onto main stage
+  const previewStage = document.getElementById('photo-preview');
+  if (previewStage) {
+    previewStage.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      previewStage.classList.add('drag-over');
+    });
+    previewStage.addEventListener('dragleave', () => previewStage.classList.remove('drag-over'));
+    previewStage.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      previewStage.classList.remove('drag-over');
+      if (e.dataTransfer.files?.length) {
+        await handleFilesUpload(e.dataTransfer.files);
       }
     });
   }
 
-  // Caption char count
-  document.getElementById('caption').addEventListener('input', updateCharCount);
+  // Caption inputs & metadata toggles
+  const captionInput = document.getElementById('caption');
+  if (captionInput) {
+    captionInput.addEventListener('input', () => updateTelegramSimulator());
+  }
 
-  // Schedule / Publish buttons
-  document.getElementById('schedule-btn').addEventListener('click', handleSchedule);
-  document.getElementById('publish-now-btn').addEventListener('click', handlePublishNow);
-
-  // Import dialog
-  document.getElementById('import-btn').addEventListener('click', openImportDialog);
-
-  // Also allow clicking the empty preview area to trigger import
-  document.getElementById('photo-preview').addEventListener('click', function () {
-    if (document.getElementById('photo-preview').classList.contains('photo-preview--empty')) {
-      openImportDialog();
-    }
+  ['toggle-location', 'toggle-camera', 'toggle-settings'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => updateTelegramSimulator());
   });
 
-  // Dialog cancel button
-  document.getElementById('import-cancel').addEventListener('click', function () {
-    document.getElementById('import-dialog').close('cancel');
+  // Preset buttons
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
   });
 
-  // File input change - enable/disable import button
-  document.getElementById('import-file').addEventListener('change', function (e) {
-    var submit = document.getElementById('import-submit');
-    submit.disabled = !e.target.files[0];
+  // Actions
+  document.getElementById('publish-now-btn')?.addEventListener('click', publishNow);
+  document.getElementById('schedule-btn')?.addEventListener('click', schedulePost);
+
+  // Library Search & Filter chips
+  document.getElementById('library-search')?.addEventListener('input', () => renderLibraryGrid());
+  document.getElementById('library-refresh')?.addEventListener('click', () => loadPhotos());
+
+  document.querySelectorAll('#library-filters .filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#library-filters .filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      renderLibraryGrid();
+    });
   });
 
-  // Dialog import button
-  document.getElementById('import-submit').addEventListener('click', function () {
-    var file = document.getElementById('import-file').files[0];
-    if (!file) {
-      showToast('Please select a file first', 'error');
+  // Bulk Actions
+  const bulkDialog = document.getElementById('bulk-schedule-dialog');
+  const bulkSchedBtn = document.getElementById('bulk-schedule-btn');
+  const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+  const bulkClearBtn = document.getElementById('bulk-clear-btn');
+  const bulkConfirm = document.getElementById('bulk-dialog-confirm');
+  const bulkCancel = document.getElementById('bulk-dialog-cancel');
+
+  if (bulkClearBtn) {
+    bulkClearBtn.addEventListener('click', () => {
+      selectedPhotoIds.clear();
+      updateBulkActionBar();
+      renderLibraryGrid();
+    });
+  }
+
+  if (bulkSchedBtn) {
+    bulkSchedBtn.addEventListener('click', () => {
+      const countEl = document.getElementById('bulk-dialog-count');
+      if (countEl) countEl.textContent = selectedPhotoIds.size;
+
+      // Default start time: current time + 1 hour
+      const nextHour = new Date();
+      nextHour.setHours(nextHour.getHours() + 1);
+      const iso = nextHour.toISOString();
+      document.getElementById('bulk-start-date').value = iso.slice(0, 10);
+      document.getElementById('bulk-start-time').value = iso.slice(11, 16);
+
+      bulkDialog?.showModal();
+    });
+  }
+
+  if (bulkCancel) bulkCancel.addEventListener('click', () => bulkDialog?.close());
+
+  if (bulkConfirm) {
+    bulkConfirm.addEventListener('click', async () => {
+      const dateVal = document.getElementById('bulk-start-date').value;
+      const timeVal = document.getElementById('bulk-start-time').value;
+      const intervalVal = parseInt(document.getElementById('bulk-interval').value, 10) || 60;
+
+      if (!dateVal || !timeVal) {
+        showToast('Please set start date and time', 'error');
+        return;
+      }
+
+      const isoStart = `${dateVal}T${timeVal}:00Z`;
+      bulkDialog.close();
+
+      try {
+        const res = await fetch(`${API_BASE}/photos/bulk-schedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            photo_ids: Array.from(selectedPhotoIds),
+            start_time: isoStart,
+            interval_minutes: intervalVal,
+            destinations: 'telegram',
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          showToast(`Bulk schedule failed: ${err.detail || 'Error'}`, 'error');
+          return;
+        }
+
+        showToast(`Scheduled ${selectedPhotoIds.size} photos spaced ${intervalVal} mins apart!`, 'success');
+        selectedPhotoIds.clear();
+        updateBulkActionBar();
+        await loadPhotos();
+      } catch (e) {
+        console.error('Bulk schedule error', e);
+        showToast('Network error during bulk schedule', 'error');
+      }
+    });
+  }
+
+  if (bulkDeleteBtn) {
+    bulkDeleteBtn.addEventListener('click', async () => {
+      if (!confirm(`Delete ${selectedPhotoIds.size} selected photo(s)? This cannot be undone.`)) return;
+      let count = 0;
+      for (const id of Array.from(selectedPhotoIds)) {
+        try {
+          const r = await fetch(`${API_BASE}/photos/${id}`, { method: 'DELETE' });
+          if (r.ok) count++;
+        } catch (e) { /* ignore */ }
+      }
+      showToast(`Deleted ${count} photo(s).`, 'info');
+      selectedPhotoIds.clear();
+      updateBulkActionBar();
+      await loadPhotos();
+    });
+  }
+
+  // Keyboard navigation
+  document.addEventListener('keydown', (e) => {
+    // If typing in input or textarea, don't trigger navigation
+    if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        publishNow();
+      }
       return;
     }
-    document.getElementById('import-dialog').close('import');
-  });
 
-  // Handle dialog close
-  document.getElementById('import-dialog').addEventListener('close', function () {
-    if (document.getElementById('import-dialog').returnValue === 'import') {
-      var file = document.getElementById('import-file').files[0];
-      if (file) handleImport(file);
+    if (e.key === 'j' || e.key === 'ArrowRight') {
+      stepPhoto(1);
+    } else if (e.key === 'k' || e.key === 'ArrowLeft') {
+      stepPhoto(-1);
+    } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      publishNow();
     }
   });
 
-  // Set default date to today
-  var today = new Date().toISOString().split('T')[0];
-  document.getElementById('schedule-date').value = today;
+  // Metadata Edit Dialog
+  const editMetaBtn = document.getElementById('edit-meta-btn');
+  const editDialog = document.getElementById('edit-meta-dialog');
+  const editCancel = document.getElementById('edit-meta-cancel');
+  const editSave = document.getElementById('edit-meta-save');
+
+  if (editMetaBtn) {
+    editMetaBtn.addEventListener('click', () => {
+      if (!currentPhoto) return;
+      document.getElementById('edit-meta-location').value = currentPhoto.location_name || '';
+      document.getElementById('edit-meta-lat').value = currentPhoto.latitude || '';
+      document.getElementById('edit-meta-lon').value = currentPhoto.longitude || '';
+      document.getElementById('edit-meta-camera').value = currentPhoto.camera || '';
+      document.getElementById('edit-meta-lens').value = currentPhoto.lens || '';
+      editDialog?.showModal();
+    });
+  }
+
+  if (editCancel) editCancel.addEventListener('click', () => editDialog?.close());
+
+  if (editSave) {
+    editSave.addEventListener('click', async () => {
+      if (!currentPhotoId) return;
+      const latRaw = document.getElementById('edit-meta-lat').value;
+      const lonRaw = document.getElementById('edit-meta-lon').value;
+
+      const payload = {
+        location_name: document.getElementById('edit-meta-location').value || null,
+        latitude: latRaw ? parseFloat(latRaw) : null,
+        longitude: lonRaw ? parseFloat(lonRaw) : null,
+        camera: document.getElementById('edit-meta-camera').value || null,
+        lens: document.getElementById('edit-meta-lens').value || null,
+      };
+
+      editDialog?.close();
+      try {
+        const res = await fetch(`${API_BASE}/photos/${currentPhotoId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          renderPhoto(updated);
+          await loadPhotos();
+          showToast('Metadata updated!', 'success');
+        }
+      } catch (e) {
+        showToast('Failed to update metadata', 'error');
+      }
+    });
+  }
+}
+
+function stepPhoto(direction) {
+  if (!allPhotos.length) return;
+  const currentIndex = allPhotos.findIndex(p => p.id === currentPhotoId);
+  let nextIndex = currentIndex + direction;
+  if (nextIndex < 0) nextIndex = allPhotos.length - 1;
+  if (nextIndex >= allPhotos.length) nextIndex = 0;
+  renderPhoto(allPhotos[nextIndex]);
+}
+
+/* ================================================================
+   INITIALIZATION
+   ================================================================ */
+
+async function init() {
+  setupEventListeners();
+  await loadPhotos();
+  await loadSocialStatus();
+
+  if (allPhotos.length > 0) {
+    renderPhoto(allPhotos[0]);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

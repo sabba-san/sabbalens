@@ -38,279 +38,520 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+  <!-- OpenStreetMap Leaflet CDN -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    html{background:#09090B}
-    body{background:#09090B}
-    :focus-visible{outline:none;box-shadow:0 0 0 2px #FF2B2B}
-    dialog{margin:auto}
-    dialog::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
-    /* Tab + filter active states (JS toggles .active, base styling is Tailwind) */
-    .tab.active{background:#18181B!important;color:#FAFAFA!important;border:1px solid #27272A!important}
-    .filter-chip.active{background:#18181B!important;color:#FAFAFA!important;border-color:#71717A!important}
-    /* Drag-over accent (JS toggles .drag-over alongside Tailwind) */
-    .drag-over{border-color:#FF2B2B!important;border-style:dashed!important}
-    .photo-preview--empty{cursor:pointer}
-    /* Toasts (Shadcn-dark defaults, DESIGN.md colors) */
-    .toast{display:flex;align-items:center;gap:8px;background:#18181B;border:1px solid #27272A;border-radius:8px;padding:12px 16px;font-size:14px;color:#FAFAFA;box-shadow:0 4px 12px rgba(0,0,0,.4);animation:toast-in 200ms cubic-bezier(0,0,0.2,1)}
-    .toast--success{border-color:rgba(34,197,94,.5)}
-    .toast--error{border-color:rgba(239,68,68,.5)}
-    .toast--info{border-color:#27272A}
-    .toast--exiting{opacity:0;transition:opacity 200ms}
-    .toast__icon{font-size:18px}
-    .toast--success .toast__icon{color:#22C55E}
-    .toast--error .toast__icon{color:#EF4444}
-    .toast--info .toast__icon{color:#71717A}
-    @keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-    /* Card entrance */
-    @keyframes card-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-    .v2-card-enter{animation:card-in 200ms cubic-bezier(0,0,0.2,1) both}
-    /* Hashtag chips + char counts (JS hooks, v1 class names preserved) */
-    .hashtag-chip{font-family:'JetBrains Mono',monospace;font-size:12px;padding:4px 10px;border-radius:9999px;border:1px solid #27272A;color:#71717A;background:transparent;cursor:pointer;transition:all 120ms}
-    .hashtag-chip:hover{color:#FAFAFA;background:#1F1F23;border-color:#71717A}
-    .char-count--warn{color:#F59E0B}
-    .char-count--over{color:#EF4444}
-    @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+    html, body { background: #09090B; }
+    :focus-visible { outline: none; box-shadow: 0 0 0 2px #FF2B2B; }
+    dialog { margin: auto; }
+    dialog::backdrop { background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+    .tab.active { background: #18181B !important; color: #FAFAFA !important; border: 1px solid #27272A !important; }
+    .filter-chip.active { background: #18181B !important; color: #FAFAFA !important; border-color: #71717A !important; }
+    .drag-over { border-color: #FF2B2B !important; border-style: dashed !important; }
+    .photo-preview--empty { cursor: pointer; }
+    /* Leaflet dark tile filter */
+    .leaflet-tile { filter: brightness(0.65) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7); }
+    .custom-reticle-marker { display: flex; align-items: center; justify-content: center; }
+    /* Telegram Chat Bubble Mockup */
+    .tele-bubble {
+      background: #182533;
+      border: 1px solid #2b5278;
+      border-radius: 12px 12px 12px 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    /* Toast styles */
+    .toast { display: flex; align-items: center; gap: 8px; background: #18181B; border: 1px solid #27272A; border-radius: 8px; padding: 12px 16px; font-size: 14px; color: #FAFAFA; box-shadow: 0 4px 12px rgba(0,0,0,.4); animation: toast-in 200ms cubic-bezier(0,0,0.2,1); }
+    .toast--success { border-color: rgba(34,197,94,.5); }
+    .toast--error { border-color: rgba(239,68,68,.5); }
+    .toast--info { border-color: #27272A; }
+    .toast--exiting { opacity: 0; transition: opacity 200ms; }
+    .toast__icon { font-size: 18px; }
+    .toast--success .toast__icon { color: #22C55E; }
+    .toast--error .toast__icon { color: #EF4444; }
+    .toast--info .toast__icon { color: #71717A; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .char-count--warn { color: #F59E0B; }
+    .char-count--over { color: #EF4444; }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   </style>
 </head>
-<body class="bg-bg text-fg font-display antialiased min-h-screen tracking-tight">
+<body class="bg-bg text-fg font-display antialiased min-h-screen tracking-tight flex flex-col">
 
   <!-- ============================================================
-       APP HEADER - minimal top nav (Vercel density, Linear dark)
+       APP HEADER
        ============================================================ -->
-  <header class="h-14 border-b border-line flex items-center justify-between px-4 sm:px-6 sticky top-0 bg-bg/90 backdrop-blur z-40">
+  <header class="h-14 border-b border-line flex items-center justify-between px-4 sm:px-6 sticky top-0 bg-bg/95 backdrop-blur z-40">
     <div class="flex items-center gap-4">
-      <a href="/" class="flex items-center gap-2" aria-label="Sabbalens home">
-        <svg class="w-6 h-6 text-fg" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-          <path d="M6 6h4v4H6v4H4V10H4V6h2zm20 0h4v4h-4v4h-2V10h-2V6h2zm-12 8v4H6v4H4v-4H4v-4h2zm16 0v4h-4v4h-2v-4h-2v-4h2z" fill="currentColor"/>
-          <circle cx="16" cy="16" r="2" fill="currentColor"/>
+      <a href="/" class="flex items-center gap-2 group" aria-label="Sabbalens home">
+        <!-- Focus reticle mark -->
+        <svg class="w-6 h-6 text-accent transition-transform group-hover:scale-105" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M4 10V4h6M22 4h6v6M28 22v6h-6M10 28H4v-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="16" cy="16" r="2.5" fill="#FAFAFA"/>
         </svg>
         <span class="font-bold text-[15px] tracking-[-0.01em]">Sabbalens</span>
       </a>
       <div class="w-px h-5 bg-line hidden sm:block" aria-hidden="true"></div>
       <nav class="flex items-center gap-1" role="tablist" aria-label="Main navigation">
-        <button role="tab" aria-selected="true" class="tab active px-3 h-9 rounded-md text-sm text-muted hover:text-fg hover:bg-surface transition min-h-[36px] border border-transparent" id="tab-scheduler" data-view="scheduler" aria-controls="view-scheduler">Scheduler</button>
-        <button role="tab" aria-selected="false" class="tab px-3 h-9 rounded-md text-sm text-muted hover:text-fg hover:bg-surface transition min-h-[36px] border border-transparent" id="tab-library" data-view="library" aria-controls="view-library">Library</button>
-        <button role="tab" aria-selected="false" class="tab px-3 h-9 rounded-md text-sm text-muted hover:text-fg hover:bg-surface transition min-h-[36px] border border-transparent" id="tab-settings" data-view="settings" aria-controls="view-settings">Settings</button>
+        <button role="tab" aria-selected="true" class="tab active px-3 h-9 rounded-md text-sm text-muted hover:text-fg hover:bg-surface transition min-h-[36px] border border-transparent inline-flex items-center gap-1.5" id="tab-scheduler" data-view="scheduler" aria-controls="view-scheduler">
+          <span class="material-symbols-outlined text-[16px]">tune</span>
+          <span>Studio</span>
+        </button>
+        <button role="tab" aria-selected="false" class="tab px-3 h-9 rounded-md text-sm text-muted hover:text-fg hover:bg-surface transition min-h-[36px] border border-transparent inline-flex items-center gap-1.5" id="tab-library" data-view="library" aria-controls="view-library">
+          <span class="material-symbols-outlined text-[16px]">photo_library</span>
+          <span>Library</span>
+        </button>
+        <button role="tab" aria-selected="false" class="tab px-3 h-9 rounded-md text-sm text-muted hover:text-fg hover:bg-surface transition min-h-[36px] border border-transparent inline-flex items-center gap-1.5" id="tab-settings" data-view="settings" aria-controls="view-settings">
+          <span class="material-symbols-outlined text-[16px]">settings</span>
+          <span>Settings</span>
+        </button>
       </nav>
+    </div>
+
+    <!-- Right Header: Live Telegram Bot pill -->
+    <div class="flex items-center gap-3">
+      <div id="header-bot-pill" class="hidden sm:inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-mono bg-surface border border-line">
+        <span class="w-2 h-2 rounded-full bg-ok animate-pulse" id="header-bot-dot"></span>
+        <span class="text-muted" id="header-bot-label">Telegram Bot: @sabbalensbot</span>
+      </div>
+      <button id="header-import-btn" class="h-8 px-3 rounded-md bg-accent text-bg text-xs font-medium hover:bg-accenthover transition inline-flex items-center gap-1.5" type="button">
+        <span class="material-symbols-outlined text-[16px]">add</span>
+        <span>Import</span>
+      </button>
     </div>
   </header>
 
-  <main class="max-w-[1200px] mx-auto p-4 sm:p-6 space-y-6">
-    <h1 class="sr-only">Sabbalens Scheduler</h1>
+  <!-- ============================================================
+       MAIN WORKSPACE
+       ============================================================ -->
+  <main class="max-w-[1360px] w-full mx-auto p-4 sm:p-6 space-y-6 flex-1">
+    <h1 class="sr-only">Sabbalens - Scheduler</h1>
 
     <!-- ==========================================================
-         VIEW: SCHEDULER
+         VIEW 1: STUDIO (STAGE & TELEGRAM COMPOSER)
          ========================================================== -->
     <div class="view" id="view-scheduler" role="tabpanel" aria-labelledby="tab-scheduler">
-      <section class="grid gap-4 lg:grid-cols-[1fr_320px]" aria-label="Photo details">
+      <div class="grid gap-6 lg:grid-cols-[1fr_400px]">
 
-        <!-- Photo Preview / Dropzone -->
-        <div class="photo-preview--empty relative grid place-items-center rounded-md border border-line bg-surface min-h-[320px] overflow-hidden text-center p-6" id="photo-preview" role="img" aria-label="Photo preview" tabindex="0">
-          <img id="photo-img" src="" alt="" class="absolute inset-0 w-full h-full object-cover rounded-md" style="display:none" />
-          <div class="grid place-items-center gap-2 text-muted relative">
-            <span class="material-symbols-outlined text-4xl" aria-hidden="true">add_a_photo</span>
-            <span class="text-sm">Drop a photo or click Import</span>
-            <button id="import-btn" class="h-9 px-4 rounded-md border border-line bg-surface text-sm text-fg hover:bg-surfacehover transition inline-flex items-center gap-2 min-h-[44px]" type="button" aria-label="Import a photo">
-              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">add_photo_alternate</span>
-              <span>Import</span>
-            </button>
-          </div>
-        </div>
+        <!-- LEFT COLUMN: Main Stage Viewport + Session Filmstrip -->
+        <div class="space-y-4">
+          <!-- Main Stage Viewport with Focus Reticle Brackets -->
+          <div class="relative rounded-lg border border-line bg-surface min-h-[440px] max-h-[560px] overflow-hidden flex items-center justify-center p-4 group" id="photo-preview" tabindex="0">
+            <!-- Focus Reticle Brackets -->
+            <div class="pointer-events-none absolute top-3 left-3 w-5 h-5 border-t-2 border-l-2 border-accent transition-opacity opacity-70 group-hover:opacity-100"></div>
+            <div class="pointer-events-none absolute top-3 right-3 w-5 h-5 border-t-2 border-r-2 border-accent transition-opacity opacity-70 group-hover:opacity-100"></div>
+            <div class="pointer-events-none absolute bottom-3 left-3 w-5 h-5 border-b-2 border-l-2 border-accent transition-opacity opacity-70 group-hover:opacity-100"></div>
+            <div class="pointer-events-none absolute bottom-3 right-3 w-5 h-5 border-b-2 border-r-2 border-accent transition-opacity opacity-70 group-hover:opacity-100"></div>
 
-        <!-- Metadata Sidebar -->
-        <div class="rounded-md border border-line bg-surface p-4 space-y-3" id="photo-meta">
-          <div>
-            <p class="text-xs text-muted mb-1">Location</p>
-            <div class="flex items-center gap-2 text-sm">
-              <span class="material-symbols-outlined text-[18px] text-muted" aria-hidden="true">location_on</span>
-              <span id="photo-location-name">-</span>
+            <!-- Overlays -->
+            <div class="absolute top-4 left-4 z-10 flex items-center gap-2">
+              <span id="photo-status" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-mono font-medium text-muted border border-line bg-bg/80 backdrop-blur">
+                <span class="w-1.5 h-1.5 rounded-full bg-muted"></span>draft
+              </span>
             </div>
-          </div>
-          <div class="h-px bg-line" aria-hidden="true"></div>
-          <div>
-            <p class="text-xs text-muted mb-1">Camera</p>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <p class="text-[10px] text-muted">Body</p>
-                <p class="font-mono text-xs" id="photo-camera">-</p>
+
+            <div class="absolute bottom-4 left-4 z-10 hidden sm:flex items-center gap-2 text-xs font-mono text-muted bg-bg/80 backdrop-blur px-2.5 py-1 rounded border border-line/60" id="stage-file-info">
+              <span id="stage-filename">photo.jpg</span>
+            </div>
+
+            <!-- Image element -->
+            <img id="photo-img" src="" alt="" class="max-h-[500px] w-auto max-w-full object-contain rounded" style="display:none" />
+
+            <!-- Empty Dropzone Placeholder -->
+            <div class="grid place-items-center gap-3 text-muted p-8 text-center" id="stage-empty-state">
+              <div class="w-14 h-14 rounded-full bg-surfacehover border border-line flex items-center justify-center text-accent">
+                <span class="material-symbols-outlined text-3xl">add_a_photo</span>
               </div>
               <div>
-                <p class="text-[10px] text-muted">Lens</p>
-                <p class="font-mono text-xs" id="photo-lens">-</p>
+                <p class="text-sm font-medium text-fg">Drop photos here or click to import</p>
+                <p class="text-xs text-muted mt-1 font-mono">Accepts JPG, PNG, WEBP, HEIC (Auto-transcoded)</p>
+              </div>
+              <button id="import-btn" class="h-9 px-4 rounded-md border border-line bg-surface text-sm text-fg hover:bg-surfacehover transition inline-flex items-center gap-2 mt-1" type="button">
+                <span class="material-symbols-outlined text-[18px]">cloud_upload</span>
+                <span>Select Photos</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Bottom Filmstrip (Multi-Item Queue) -->
+          <section class="rounded-lg border border-line bg-surface p-3" aria-label="Session Filmstrip" id="filmstrip-section">
+            <div class="flex items-center justify-between mb-2 px-1">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold text-muted uppercase tracking-wider">Session Filmstrip</span>
+                <span class="text-[11px] text-muted font-mono" id="filmstrip-count">0 photos</span>
+              </div>
+              <span class="text-[11px] text-muted font-mono hidden sm:inline">Use <kbd class="px-1 py-0.5 rounded bg-bg border border-line text-fg">J</kbd> / <kbd class="px-1 py-0.5 rounded bg-bg border border-line text-fg">K</kbd> to step</span>
+            </div>
+            <div class="flex items-center gap-2.5 overflow-x-auto pb-1 min-h-[90px]" id="photo-filmstrip">
+              <!-- Dynamically populated thumbnail cards -->
+            </div>
+          </section>
+        </div>
+
+        <!-- RIGHT COLUMN: Inspector & Telegram Composer Studio -->
+        <div class="space-y-4">
+          <!-- 1. Geo & EXIF Telemetry Card -->
+          <section class="rounded-lg border border-line bg-surface p-4 space-y-3" id="photo-meta">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-[18px] text-accent">pin_drop</span>
+                <span class="text-xs font-semibold uppercase tracking-wider text-muted">Location & EXIF</span>
+              </div>
+              <button id="edit-meta-btn" type="button" class="text-xs text-accent hover:text-accenthover inline-flex items-center gap-1 px-2 py-0.5 rounded border border-line hover:border-accent transition">
+                <span class="material-symbols-outlined text-[14px]">edit</span>
+                <span>Edit</span>
+              </button>
+            </div>
+
+            <!-- Location name -->
+            <div>
+              <p class="font-medium text-sm text-fg" id="photo-location-name">No location resolved</p>
+              <p class="font-mono text-xs text-muted" id="photo-coords">--°, --°</p>
+            </div>
+
+            <!-- OpenStreetMap Leaflet mini-map -->
+            <div id="photo-map" class="h-32 w-full rounded-md border border-line overflow-hidden relative z-0"></div>
+            <div id="map-empty-placeholder" class="hidden h-20 rounded-md border border-line/40 bg-bg/50 flex items-center justify-center text-xs text-muted font-mono">
+              <span>📍 No GPS coordinates in EXIF</span>
+            </div>
+
+            <!-- 4-card EXIF Telemetry Matrix -->
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="p-2 rounded bg-bg border border-line">
+                <p class="text-[10px] text-muted uppercase">Camera</p>
+                <p class="font-mono text-xs text-fg truncate" id="photo-camera">—</p>
+              </div>
+              <div class="p-2 rounded bg-bg border border-line">
+                <p class="text-[10px] text-muted uppercase">Lens</p>
+                <p class="font-mono text-xs text-fg truncate" id="photo-lens">—</p>
+              </div>
+              <div class="p-2 rounded bg-bg border border-line">
+                <p class="text-[10px] text-muted uppercase">Focal / Aperture</p>
+                <p class="font-mono text-xs text-fg truncate" id="photo-focal-aperture">—</p>
+              </div>
+              <div class="p-2 rounded bg-bg border border-line">
+                <p class="text-[10px] text-muted uppercase">Shutter / ISO</p>
+                <p class="font-mono text-xs text-fg truncate" id="photo-shutter-iso">—</p>
               </div>
             </div>
-          </div>
-          <div class="h-px bg-line" aria-hidden="true"></div>
-          <div>
-            <p class="text-xs text-muted mb-1">Exposure</p>
-            <p class="font-mono text-xs" id="photo-settings">-</p>
-          </div>
-          <div class="h-px bg-line" aria-hidden="true"></div>
-          <div>
-            <p class="text-xs text-muted mb-1">GPS</p>
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-[18px] text-muted" aria-hidden="true">gps_fixed</span>
-              <span class="font-mono text-xs" id="photo-coords">-</span>
+            <!-- Hidden backward compatibility holder for existing selectors -->
+            <span id="photo-settings" class="hidden"></span>
+          </section>
+
+          <!-- 2. Telegram Composer & Live Chat Bubble Simulator -->
+          <section class="rounded-lg border border-line bg-surface p-4 space-y-4" aria-labelledby="composer-title">
+            <div class="flex items-center justify-between">
+              <h2 id="composer-title" class="text-sm font-semibold uppercase tracking-wider text-muted flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[18px] text-accent">send</span>
+                <span>Telegram Publisher</span>
+              </h2>
+              <span class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-ok/10 text-ok border border-ok/30 flex items-center gap-1" id="composer-chat-tag">
+                <span class="w-1.5 h-1.5 rounded-full bg-ok"></span>
+                <span>post pic dazz</span>
+              </span>
             </div>
-          </div>
-          <div class="h-px bg-line" aria-hidden="true"></div>
-          <div>
-            <p class="text-xs text-muted mb-1">Status</p>
-            <span id="photo-status" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium text-muted border border-line"><span class="w-1.5 h-1.5 rounded-full bg-muted"></span>draft</span>
-          </div>
+
+            <!-- Published / Scheduled Banners -->
+            <div id="scheduled-banner" class="hidden p-3 rounded-md border border-warn/30 bg-warn/5 text-warn text-xs flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px]">alarm_on</span>
+              <span id="scheduled-banner-text">Scheduled for auto-publish.</span>
+            </div>
+
+            <div id="published-banner" class="hidden p-3 rounded-md border border-ok/30 bg-ok/5 text-ok text-xs flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                <span id="published-banner-text">Published</span>
+              </div>
+              <span class="font-mono text-[11px] text-muted" id="published-media-id"></span>
+            </div>
+
+            <!-- Caption input -->
+            <div>
+              <div class="flex items-center justify-between text-xs mb-1">
+                <label for="caption" class="text-muted font-medium">Story Caption</label>
+                <span class="font-mono text-[11px] text-muted" id="char-count-wrap"><span id="char-count">0</span> / 1024</span>
+              </div>
+              <textarea id="caption" rows="3" placeholder="Tell the story of this frame..." class="w-full rounded-md border border-line bg-bg px-3 py-2 font-mono text-sm text-fg placeholder:text-muted focus:border-accent transition resize-none"></textarea>
+            </div>
+
+            <!-- Optional Metadata Toggles (Approved Architecture) -->
+            <div class="space-y-1.5 p-2.5 rounded bg-bg border border-line">
+              <p class="text-[11px] font-semibold text-muted uppercase tracking-wider mb-1">Smart Caption Toggles</p>
+              <div class="flex flex-wrap gap-3 text-xs">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer text-fg select-none">
+                  <input type="checkbox" id="toggle-location" class="accent-accent w-3.5 h-3.5 rounded" />
+                  <span>📍 Location</span>
+                </label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer text-fg select-none">
+                  <input type="checkbox" id="toggle-camera" class="accent-accent w-3.5 h-3.5 rounded" />
+                  <span>📷 Camera</span>
+                </label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer text-fg select-none">
+                  <input type="checkbox" id="toggle-settings" class="accent-accent w-3.5 h-3.5 rounded" />
+                  <span>⚙️ Settings</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Live Telegram Message Simulator Bubble -->
+            <div>
+              <p class="text-[11px] font-semibold text-muted uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>Telegram Message Preview</span>
+                <span class="font-mono text-[10px] text-muted">WYSIWYG</span>
+              </p>
+              <div class="tele-bubble p-3 space-y-2 text-xs text-white/90">
+                <div class="flex items-center gap-2 border-b border-white/10 pb-1.5">
+                  <div class="w-5 h-5 rounded-full bg-accent flex items-center justify-center text-[10px] font-bold text-white">S</div>
+                  <span class="font-semibold text-xs text-accent">Sabbalens Bot</span>
+                  <span class="text-[10px] text-white/50 font-mono ml-auto" id="tele-bubble-time">now</span>
+                </div>
+                <div class="rounded overflow-hidden max-h-36 bg-black/40 flex items-center justify-center">
+                  <img id="tele-bubble-img" src="" alt="preview" class="max-h-36 w-auto object-contain" style="display:none" />
+                  <span id="tele-bubble-noimg" class="text-[10px] text-white/40 py-6">No image selected</span>
+                </div>
+                <div id="tele-bubble-caption" class="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-white/85 min-h-[24px]"></div>
+                <div class="flex justify-end text-[10px] text-white/40 font-mono">
+                  <span>✓✓</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Schedule Presets & Inputs -->
+            <div class="space-y-2 pt-1 border-t border-line">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-muted font-medium">Schedule Presets</span>
+                <div class="flex gap-1.5">
+                  <button type="button" class="preset-btn px-2 py-0.5 rounded bg-bg border border-line text-[11px] text-muted hover:text-fg hover:border-accent transition" data-preset="1h">+1 Hour</button>
+                  <button type="button" class="preset-btn px-2 py-0.5 rounded bg-bg border border-line text-[11px] text-muted hover:text-fg hover:border-accent transition" data-preset="tonight">Tonight 8pm</button>
+                  <button type="button" class="preset-btn px-2 py-0.5 rounded bg-bg border border-line text-[11px] text-muted hover:text-fg hover:border-accent transition" data-preset="tomorrow">Tomorrow 9am</button>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <input type="date" id="schedule-date" class="w-full h-9 rounded border border-line bg-bg px-2.5 text-xs text-fg focus:border-accent transition" />
+                </div>
+                <div>
+                  <input type="time" id="schedule-time" step="60" class="w-full h-9 rounded border border-line bg-bg px-2.5 font-mono text-xs text-fg focus:border-accent transition" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-2 pt-2">
+              <button id="schedule-btn" class="flex-1 h-10 px-3 rounded-md border border-line text-xs font-medium text-fg hover:bg-surfacehover transition inline-flex items-center justify-center gap-1.5" type="button">
+                <span class="material-symbols-outlined text-[16px]">schedule</span>
+                <span>Schedule Post</span>
+              </button>
+              <button id="publish-now-btn" class="flex-1 h-10 px-3 rounded-md bg-accent text-bg text-xs font-medium hover:bg-accenthover transition inline-flex items-center justify-center gap-1.5 disabled:opacity-50" type="button">
+                <span class="material-symbols-outlined text-[16px]">send</span>
+                <span>Publish to Telegram</span>
+              </button>
+            </div>
+          </section>
         </div>
-      </section>
-
-      <!-- Schedule Panel -->
-      <section class="mt-4 rounded-md border border-line bg-surface p-4 space-y-4" aria-labelledby="schedule-title">
-        <h2 id="schedule-title" class="text-[20px] font-bold tracking-[-0.01em]">Schedule Post</h2>
-
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Publish destinations">
-          <label class="inline-flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm cursor-pointer has-[:checked]:border-accent has-[:checked]:text-fg text-muted transition min-h-[44px]">
-            <input type="checkbox" name="destination" value="instagram" checked class="accent-[#FF2B2B]" />
-            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">photo_camera</span>
-            <span>Instagram</span>
-          </label>
-          <label class="inline-flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm cursor-pointer has-[:checked]:border-accent has-[:checked]:text-fg text-muted transition min-h-[44px]">
-            <input type="checkbox" name="destination" value="threads" class="accent-[#FF2B2B]" />
-            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">forum</span>
-            <span>Threads</span>
-          </label>
-          <label class="inline-flex items-center gap-2 h-9 px-3 rounded-md border border-line text-sm cursor-pointer has-[:checked]:border-accent has-[:checked]:text-fg text-muted transition min-h-[44px]">
-            <input type="checkbox" name="destination" value="bluesky" class="accent-[#FF2B2B]" />
-            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">cloud</span>
-            <span>Bluesky</span>
-          </label>
-        </div>
-
-        <div>
-          <label for="caption" class="block text-sm mb-1.5">Caption</label>
-          <textarea id="caption" rows="5" placeholder="Tell the story..." aria-describedby="caption-hint" class="w-full rounded-md border border-line bg-bg px-3 py-2.5 font-mono text-sm text-fg placeholder:text-muted focus:border-accent transition"></textarea>
-          <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted" id="caption-hint">
-            <span><span id="char-count">0</span> / 2200</span>
-            <div class="flex flex-wrap gap-1.5" id="hashtag-suggestions" aria-label="Hashtag suggestions"></div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label for="schedule-date" class="block text-sm mb-1.5">Date</label>
-            <input type="date" id="schedule-date" class="w-full h-11 rounded-md border border-line bg-bg px-3 text-sm text-fg focus:border-accent transition min-h-[44px]" />
-          </div>
-          <div>
-            <label for="schedule-time" class="block text-sm mb-1.5">Time (UTC)</label>
-            <input type="time" id="schedule-time" step="60" class="w-full h-11 rounded-md border border-line bg-bg px-3 font-mono text-sm text-fg focus:border-accent transition min-h-[44px]" />
-          </div>
-        </div>
-
-        <p class="text-xs text-muted">Scheduled posts publish to Instagram. Threads and Bluesky are not connected yet.</p>
-
-        <div class="flex flex-wrap gap-2">
-          <button id="schedule-btn" class="h-11 px-4 rounded-md border border-line text-sm text-fg hover:bg-surfacehover transition inline-flex items-center gap-2 min-h-[44px]" type="button">
-            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">schedule</span>
-            Schedule Post
-          </button>
-          <button id="publish-now-btn" class="h-11 px-4 rounded-md bg-accent text-bg text-sm font-medium hover:bg-accenthover transition inline-flex items-center gap-2 min-h-[44px] disabled:opacity-50" type="button">
-            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">send</span>
-            Publish Now
-          </button>
-        </div>
-      </section>
+      </div>
     </div>
 
     <!-- ==========================================================
-         VIEW: LIBRARY - responsive grid (Vercel density)
+         VIEW 2: LIBRARY (GRID & BULK SCHEDULING)
          ========================================================== -->
     <section class="view" id="view-library" role="tabpanel" aria-labelledby="tab-library" hidden>
-      <div class="flex items-center justify-between gap-3 mb-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div>
-          <h2 class="text-[24px] font-bold tracking-[-0.01em]">Library</h2>
-          <p class="text-sm text-muted mt-1" id="library-summary">Loading...</p>
+          <h2 class="text-[22px] font-bold tracking-[-0.01em]">Media Library</h2>
+          <p class="text-xs text-muted mt-0.5" id="library-summary">Loading photos...</p>
         </div>
-        <button id="library-refresh" class="h-9 px-4 rounded-md border border-line text-sm text-fg hover:bg-surfacehover transition inline-flex items-center gap-2 min-h-[44px]" type="button" aria-label="Refresh library">
-          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">refresh</span>
-          <span>Refresh</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <!-- Live search -->
+          <div class="relative w-full sm:w-64">
+            <span class="material-symbols-outlined absolute left-2.5 top-2 text-[16px] text-muted pointer-events-none">search</span>
+            <input type="text" id="library-search" placeholder="Filter by location, camera, name..." class="w-full h-8 pl-8 pr-3 rounded-md border border-line bg-surface text-xs text-fg placeholder:text-muted focus:border-accent transition" />
+          </div>
+          <button id="library-refresh" class="h-8 px-3 rounded-md border border-line text-xs text-fg hover:bg-surfacehover transition inline-flex items-center gap-1.5" type="button" aria-label="Refresh library">
+            <span class="material-symbols-outlined text-[16px]">refresh</span>
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
+      <!-- Status Filter Chips -->
       <div class="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="Filter by status" id="library-filters">
-        <button type="button" class="filter-chip active h-8 px-3 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="all" id="filter-all">All <span class="font-mono" data-count="all">0</span></button>
-        <button type="button" class="filter-chip h-8 px-3 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="draft" id="filter-draft">Draft <span class="font-mono" data-count="draft">0</span></button>
-        <button type="button" class="filter-chip h-8 px-3 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="scheduled" id="filter-scheduled">Scheduled <span class="font-mono" data-count="scheduled">0</span></button>
-        <button type="button" class="filter-chip h-8 px-3 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="published" id="filter-published">Published <span class="font-mono" data-count="published">0</span></button>
-        <button type="button" class="filter-chip h-8 px-3 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="failed" id="filter-failed">Failed <span class="font-mono" data-count="failed">0</span></button>
+        <button type="button" class="filter-chip active h-7 px-2.5 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="all" id="filter-all">All <span class="font-mono text-[10px]" data-count="all">0</span></button>
+        <button type="button" class="filter-chip h-7 px-2.5 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="draft" id="filter-draft">Draft <span class="font-mono text-[10px]" data-count="draft">0</span></button>
+        <button type="button" class="filter-chip h-7 px-2.5 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="scheduled" id="filter-scheduled">Scheduled <span class="font-mono text-[10px]" data-count="scheduled">0</span></button>
+        <button type="button" class="filter-chip h-7 px-2.5 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="published" id="filter-published">Published <span class="font-mono text-[10px]" data-count="published">0</span></button>
+        <button type="button" class="filter-chip h-7 px-2.5 rounded-full border border-line text-xs text-muted hover:text-fg transition inline-flex items-center gap-1.5" data-status="failed" id="filter-failed">Failed <span class="font-mono text-[10px]" data-count="failed">0</span></button>
       </div>
 
+      <!-- Photo Cards Grid -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="photo-grid" aria-live="polite"></div>
 
+      <!-- Empty State -->
       <div class="hidden text-center py-16 grid place-items-center gap-3" id="library-empty" hidden>
-        <span class="material-symbols-outlined text-4xl text-muted" aria-hidden="true">photo_library</span>
+        <span class="material-symbols-outlined text-4xl text-muted">photo_library</span>
         <p class="text-sm text-muted" id="library-empty-text">No photos yet.</p>
-        <button type="button" class="h-11 px-4 rounded-md bg-accent text-bg text-sm font-medium hover:bg-accenthover transition inline-flex items-center gap-2 min-h-[44px]" id="library-import-btn">
-          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">add_photo_alternate</span>
-          Import a photo
+        <button type="button" class="h-9 px-4 rounded-md bg-accent text-bg text-xs font-medium hover:bg-accenthover transition inline-flex items-center gap-1.5" id="library-import-btn">
+          <span class="material-symbols-outlined text-[16px]">add_photo_alternate</span>
+          <span>Import a photo</span>
         </button>
+      </div>
+
+      <!-- Floating Bulk Action Bar (appears when cards are selected) -->
+      <div id="bulk-action-bar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface/95 backdrop-blur border border-line px-4 py-2.5 rounded-full shadow-2xl z-50 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
+        <span class="text-xs font-mono font-medium text-fg pl-1"><span id="bulk-selected-count">0</span> selected</span>
+        <div class="w-px h-4 bg-line"></div>
+        <button type="button" id="bulk-schedule-btn" class="h-8 px-3 rounded-full bg-accent text-bg text-xs font-medium hover:bg-accenthover transition inline-flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]">event_repeat</span>
+          <span>Bulk Schedule</span>
+        </button>
+        <button type="button" id="bulk-delete-btn" class="h-8 px-3 rounded-full border border-line text-xs text-err hover:bg-err/10 transition inline-flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]">delete</span>
+          <span>Delete</span>
+        </button>
+        <button type="button" id="bulk-clear-btn" class="h-8 px-2 rounded-full text-xs text-muted hover:text-fg transition">✕</button>
       </div>
     </section>
 
     <!-- ==========================================================
-         VIEW: SETTINGS
+         VIEW 3: SETTINGS
          ========================================================== -->
     <section class="view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
       <div class="mb-4">
-        <h2 class="text-[24px] font-bold tracking-[-0.01em]">Settings</h2>
-        <p class="text-sm text-muted mt-1">System status for this Sabbalens server.</p>
+        <h2 class="text-[22px] font-bold tracking-[-0.01em]">System Settings</h2>
+        <p class="text-xs text-muted mt-0.5">Configuration and live diagnostics for Sabbalens.</p>
       </div>
 
-      <dl class="rounded-md border border-line bg-surface divide-y divide-line">
+      <dl class="rounded-lg border border-line bg-surface divide-y divide-line">
         <div class="flex items-center justify-between gap-4 px-4 py-3">
-          <dt class="text-sm">API status</dt>
-          <dd><span id="settings-api" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium text-muted border border-line">checking...</span></dd>
+          <dt class="text-xs font-medium">API Health</dt>
+          <dd><span id="settings-api" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-muted border border-line">checking...</span></dd>
         </div>
         <div class="flex items-center justify-between gap-4 px-4 py-3">
-          <dt class="text-sm">Photos stored</dt>
-          <dd class="font-mono text-sm" id="settings-count">-</dd>
+          <dt class="text-xs font-medium">Photos Stored</dt>
+          <dd class="font-mono text-xs text-fg" id="settings-count">-</dd>
         </div>
         <div class="flex items-center justify-between gap-4 px-4 py-3">
-          <dt class="text-sm">Instagram Publishing</dt>
+          <div>
+            <dt class="text-xs font-medium">Telegram Bot Status</dt>
+            <dd class="text-[11px] text-muted font-mono" id="settings-telegram-target">Target: post pic dazz (-5429792155)</dd>
+          </div>
           <dd class="flex items-center gap-3">
-            <span id="settings-ig" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium text-err bg-[rgba(239,68,68,0.15)]"><span class="w-1.5 h-1.5 rounded-full bg-err"></span>not connected</span>
-            <a id="settings-ig-connect" class="text-sm text-accent hover:text-accenthover underline-offset-4 hover:underline" href="/api/v1/auth/instagram">Connect -></a>
+            <span id="settings-telegram" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-muted border border-line">checking...</span>
+            <button id="settings-telegram-test" class="text-xs text-accent hover:text-accenthover underline-offset-4 hover:underline cursor-pointer" type="button">Send Test Ping</button>
           </dd>
         </div>
         <div class="flex items-center justify-between gap-4 px-4 py-3">
-          <dt class="text-sm text-muted">API docs</dt>
-          <dd><a class="text-sm text-accent hover:underline" href="/docs" target="_blank" rel="noopener">/docs</a></dd>
+          <dt class="text-xs font-medium">Interactive Documentation</dt>
+          <dd><a class="text-xs text-accent hover:underline font-mono" href="/docs" target="_blank" rel="noopener">/docs (Swagger UI)</a></dd>
         </div>
       </dl>
     </section>
   </main>
 
-  <footer class="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 font-mono text-xs text-muted">
-    Sabbalens - Every frame, placed.
+  <footer class="max-w-[1360px] w-full mx-auto px-4 sm:px-6 py-6 font-mono text-[11px] text-muted flex items-center justify-between border-t border-line/40">
+    <span>Sabbalens — Geo-aware photo pipeline</span>
+    <span>Every frame, placed.</span>
   </footer>
 
   <!-- ============================================================
-       IMPORT DIALOG - centered, blurred backdrop (Linear-style)
+       IMPORT DIALOG
        ============================================================ -->
-  <dialog id="import-dialog" class="bg-surface text-fg border border-line rounded-lg p-6 w-[min(480px,92vw)] backdrop:bg-black/60 backdrop:backdrop-blur-sm shadow-[0_4px_12px_rgba(0,0,0,0.4)]">
+  <dialog id="import-dialog" class="bg-surface text-fg border border-line rounded-lg p-6 w-[min(480px,92vw)] shadow-2xl">
     <form method="dialog">
-      <h3 class="text-[20px] font-bold tracking-[-0.01em] text-center mb-4">Import Photo</h3>
-      <div class="grid place-items-center gap-2 rounded-md border border-dashed border-line bg-bg px-6 py-12 text-center text-sm text-muted hover:border-accent focus-within:border-accent transition min-h-[180px] cursor-pointer" id="import-dropzone" tabindex="0" role="button" aria-label="Drop photo here or click to select">
-        <input type="file" id="import-file" accept="image/*" required class="sr-only" />
-        <span class="material-symbols-outlined text-3xl" aria-hidden="true">cloud_upload</span>
-        <span>Drop photo here or <span class="text-fg underline underline-offset-4">click to select</span></span>
-        <span class="font-mono text-xs">jpg / jpeg / png · 10MB max</span>
+      <h3 class="text-[18px] font-bold tracking-[-0.01em] text-center mb-4">Import Photos</h3>
+      <div class="grid place-items-center gap-2 rounded-md border border-dashed border-line bg-bg px-6 py-10 text-center text-xs text-muted hover:border-accent focus-within:border-accent transition min-h-[160px] cursor-pointer" id="import-dropzone" tabindex="0" role="button">
+        <input type="file" id="import-file" accept="image/*" multiple required class="sr-only" />
+        <span class="material-symbols-outlined text-3xl text-accent">cloud_upload</span>
+        <span>Drop photos here or <span class="text-fg underline underline-offset-4">browse</span></span>
+        <span class="font-mono text-[10px] text-muted">Supports multiple files · JPG, PNG, WEBP, HEIC</span>
       </div>
       <div class="flex justify-end gap-2 mt-4">
-        <button value="cancel" class="h-11 px-4 rounded-md border border-line text-sm hover:bg-surfacehover transition min-h-[44px]" type="button" id="import-cancel">Cancel</button>
-        <button value="import" class="h-11 px-4 rounded-md bg-accent text-bg text-sm font-medium hover:bg-accenthover transition min-h-[44px] disabled:opacity-50" id="import-submit" type="button" disabled>Import</button>
+        <button value="cancel" class="h-9 px-3 rounded-md border border-line text-xs hover:bg-surfacehover transition" type="button" id="import-cancel">Cancel</button>
+        <button value="import" class="h-9 px-4 rounded-md bg-accent text-bg text-xs font-medium hover:bg-accenthover transition disabled:opacity-50" id="import-submit" type="button" disabled>Upload</button>
       </div>
     </form>
   </dialog>
 
-  <div id="toast-container" class="fixed bottom-4 right-4 z-50 grid gap-2 w-[min(360px,90vw)]" aria-live="polite" aria-atomic="true"></div>
+  <!-- ============================================================
+       BULK SCHEDULE DIALOG
+       ============================================================ -->
+  <dialog id="bulk-schedule-dialog" class="bg-surface text-fg border border-line rounded-lg p-6 w-[min(420px,92vw)] shadow-2xl">
+    <form method="dialog" class="space-y-4">
+      <div>
+        <h3 class="text-[18px] font-bold tracking-[-0.01em]">Bulk Staggered Schedule</h3>
+        <p class="text-xs text-muted mt-0.5">Schedule <span id="bulk-dialog-count" class="font-mono text-accent">0</span> photos spaced automatically.</p>
+      </div>
 
-  <script src="app.js"></script>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs text-muted mb-1">Start Date</label>
+          <input type="date" id="bulk-start-date" required class="w-full h-9 rounded border border-line bg-bg px-2.5 text-xs text-fg focus:border-accent" />
+        </div>
+        <div>
+          <label class="block text-xs text-muted mb-1">Start Time (UTC)</label>
+          <input type="time" id="bulk-start-time" step="60" required class="w-full h-9 rounded border border-line bg-bg px-2.5 font-mono text-xs text-fg focus:border-accent" />
+        </div>
+        <div>
+          <label class="block text-xs text-muted mb-1">Interval Between Posts</label>
+          <select id="bulk-interval" class="w-full h-9 rounded border border-line bg-bg px-2.5 text-xs text-fg focus:border-accent">
+            <option value="30">Every 30 Minutes</option>
+            <option value="60" selected>Every 1 Hour (Recommended)</option>
+            <option value="120">Every 2 Hours</option>
+            <option value="360">Every 6 Hours</option>
+            <option value="1440">Every 1 Day (24 Hours)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-line">
+        <button type="button" id="bulk-dialog-cancel" class="h-9 px-3 rounded-md border border-line text-xs hover:bg-surfacehover transition">Cancel</button>
+        <button type="button" id="bulk-dialog-confirm" class="h-9 px-4 rounded-md bg-accent text-bg text-xs font-medium hover:bg-accenthover transition">Confirm Bulk Schedule</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============================================================
+       EDIT METADATA DIALOG
+       ============================================================ -->
+  <dialog id="edit-meta-dialog" class="bg-surface text-fg border border-line rounded-lg p-6 w-[min(480px,92vw)] shadow-2xl">
+    <form method="dialog" class="space-y-4">
+      <h3 class="text-[18px] font-bold tracking-[-0.01em]">Edit Photo Metadata</h3>
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-muted mb-1">Location Name</label>
+          <input type="text" id="edit-meta-location" class="w-full h-8 rounded border border-line bg-bg px-2.5 text-fg focus:border-accent" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-muted mb-1">Latitude</label>
+            <input type="number" step="any" id="edit-meta-lat" class="w-full h-8 rounded border border-line bg-bg px-2.5 font-mono text-fg focus:border-accent" />
+          </div>
+          <div>
+            <label class="block text-muted mb-1">Longitude</label>
+            <input type="number" step="any" id="edit-meta-lon" class="w-full h-8 rounded border border-line bg-bg px-2.5 font-mono text-fg focus:border-accent" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-muted mb-1">Camera Body</label>
+            <input type="text" id="edit-meta-camera" class="w-full h-8 rounded border border-line bg-bg px-2.5 text-fg focus:border-accent" />
+          </div>
+          <div>
+            <label class="block text-muted mb-1">Lens</label>
+            <input type="text" id="edit-meta-lens" class="w-full h-8 rounded border border-line bg-bg px-2.5 text-fg focus:border-accent" />
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t border-line">
+        <button type="button" id="edit-meta-cancel" class="h-8 px-3 rounded-md border border-line text-xs hover:bg-surfacehover transition">Cancel</button>
+        <button type="button" id="edit-meta-save" class="h-8 px-4 rounded-md bg-accent text-bg text-xs font-medium hover:bg-accenthover transition">Save Changes</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none [&>*]:pointer-events-auto" aria-live="polite"></div>
+
+  <script src="/app/app.js"></script>
 </body>
 </html>

@@ -14,9 +14,11 @@ def get_storage() -> LocalStorage:
 
 
 async def validate_image_file(file: UploadFile = File(...)) -> UploadFile:
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
     ext = file.filename.split(".")[-1].lower() if file.filename else ""
+    is_image_mime = bool(file.content_type and file.content_type.startswith("image/"))
+    is_heic_mime = ext in {"heic", "heif"} and file.content_type in ("application/octet-stream", None, "")
+    if not (is_image_mime or is_heic_mime):
+        raise HTTPException(status_code=400, detail="File must be an image")
     if ext not in settings.allowed_extensions:
         raise HTTPException(
             status_code=400,

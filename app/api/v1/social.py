@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 
 from app.core.config import settings
+import app.services.social as social
 
 router = APIRouter(prefix="/auth", tags=["social"])
 
@@ -13,6 +14,12 @@ GRAPH = "https://graph.facebook.com/v21.0"
 
 def _rand_state() -> str:
     return secrets.token_urlsafe(16)
+
+
+@router.get("/status")
+def social_status():
+    """Return live / simulation connection status for social platforms."""
+    return social.get_social_status()
 
 
 @router.get("/instagram")

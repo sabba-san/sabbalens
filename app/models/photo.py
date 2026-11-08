@@ -35,4 +35,5 @@ class Photo(Base):
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     instagram_media_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    telegram_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())

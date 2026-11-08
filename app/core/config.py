@@ -17,14 +17,22 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/sabbalens.db"
     upload_dir: Path = Path("./data/uploads")
     max_file_size: int = 10 * 1024 * 1024
-    allowed_extensions: set[str] = {"jpg", "jpeg", "png"}
+    allowed_extensions: set[str] = {"jpg", "jpeg", "png", "heic", "heif", "webp"}
     nominatim_user_agent: str = "sabbalens_photo_scheduler"
     nominatim_rate_limit: float = 1.0
 
     # Public base URL for Instagram image fetching
     public_base_url: str = "https://api.sabbalens.me"
 
-    # Instagram (for future publisher)
+    # Telegram Bot
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    telegram_parse_mode: str = "HTML"
+
+    # Social publishing simulation mode (fallback if credentials missing)
+    simulate_social_publish: bool = True
+
+    # Legacy Instagram (kept for backwards compatibility)
     instagram_app_id: str | None = None
     instagram_app_secret: str | None = None
     instagram_access_token: str | None = None

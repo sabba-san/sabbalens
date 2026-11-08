@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import init_db
 from app.api.v1.router import router as api_v1_router
 from app.services.storage import storage
 from app.services.scheduler import init_scheduler, start_scheduler, shutdown_scheduler
@@ -12,7 +12,7 @@ from app.tasks.publisher import register_publisher_job
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    init_db()
 
     # Initialize and start scheduler
     init_scheduler()
@@ -38,13 +38,16 @@ def health():
     return {"status": "ok"}
 
 
-# Scheduler app at /app/ (stable v1 — untouched)
-app_dir = Path(__file__).parent.parent / "frontend_v1"
-app.mount("/app", StaticFiles(directory=app_dir, html=True), name="frontend")
-
-# Tailwind preview at /v2/ (parallel deployment — v2 testing only)
+# Main scheduler app at /app/ (V2 primary)
 app_dir_v2 = Path(__file__).parent.parent / "frontend_v2"
+app.mount("/app", StaticFiles(directory=app_dir_v2, html=True), name="frontend")
+
+# /v2/ alias pointing to V2
 app.mount("/v2", StaticFiles(directory=app_dir_v2, html=True), name="frontend_v2")
+
+# Legacy v1 backup at /v1/
+app_dir_v1 = Path(__file__).parent.parent / "frontend_v1"
+app.mount("/v1", StaticFiles(directory=app_dir_v1, html=True), name="frontend_v1")
 
 # Landing preview at /preview/ (parallel deployment — v2 testing only)
 preview_dir = Path(__file__).parent.parent / "frontend_landing_v2"

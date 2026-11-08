@@ -178,13 +178,20 @@ curl -X POST http://localhost:8000/api/v1/photos/upload -F "file=@/tmp/test.jpg"
 ```bash
 APP_NAME=Sabbalens API
 DEBUG=true
-DATABASE_URL=sqlite:///./sabbalens.db
+DATABASE_URL=postgresql+psycopg://sabbalens:sabbalens@localhost:5432/sabbalens
+# SQLite fallback: DATABASE_URL=sqlite:///./sabbalens.db
 UPLOAD_DIR=./uploads
 MAX_FILE_SIZE=10485760
 NOMINATIM_USER_AGENT=sabbalens_photo_scheduler
 NOMINATIM_RATE_LIMIT=1.0
 
-# Instagram (for future publisher)
+# Telegram Bot Publishing
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+TELEGRAM_CHAT_ID=@my_photo_channel
+TELEGRAM_PARSE_MODE=HTML
+SIMULATE_SOCIAL_PUBLISH=true
+
+# Legacy Instagram (Optional)
 INSTAGRAM_APP_ID=
 INSTAGRAM_APP_SECRET=
 INSTAGRAM_ACCESS_TOKEN=
