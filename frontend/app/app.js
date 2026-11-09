@@ -18,6 +18,13 @@ let selectedPhotoIds = new Set();
 let mapInstance = null;
 let mapMarker = null;
 let showPublishedInFilmstrip = false;
+// Photo IDs the user removed from the filmstrip without posting (kept in Library).
+const HIDDEN_KEY = 'sabbalens.hiddenFromFilmstrip';
+let hiddenFromFilmstrip = new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'));
+
+function saveHidden() {
+  localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(hiddenFromFilmstrip)));
+}
 
 const CAPTION_MAX = 1024;
 const TOAST_DURATION_MS = 4000;
@@ -430,6 +437,19 @@ function renderFilmstrip() {
     dot.className = `absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${dotClasses(photo.status)} shadow`;
     card.appendChild(dot);
 
+    // Remove-from-filmstrip button (no post, no delete)
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.title = 'Remove from filmstrip (keeps it in Library)';
+    removeBtn.setAttribute('aria-label', `Remove ${photo.filename} from filmstrip`);
+    removeBtn.className = 'absolute top-1 left-1 w-5 h-5 rounded-full bg-bg/90 border border-line text-muted hover:text-fg hover:border-accent flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition';
+    removeBtn.innerHTML = '<span class="material-symbols-outlined text-[14px]">close</span>';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeFromFilmstrip(photo);
+    });
+    card.appendChild(removeBtn);
+
     card.addEventListener('click', () => {
       renderPhoto(photo);
     });
@@ -439,7 +459,36 @@ function renderFilmstrip() {
 }
 
 function filmstripPhotos() {
-  return showPublishedInFilmstrip ? allPhotos : allPhotos.filter(p => p.status !== 'published');
+  return allPhotos.filter(p =>
+    !hiddenFromFilmstrip.has(p.id) && (showPublishedInFilmstrip || p.status !== 'published')
+  );
+}
+
+async function removeFromFilmstrip(photo) {
+  // A scheduled photo would still auto-post, so cancel its schedule first.
+  if (photo.status === 'scheduled') {
+    try {
+      const res = await fetch(`${API_BASE}/photos/${photo.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'draft', scheduled_at: null }),
+      });
+      if (!res.ok) {
+        showToast('Could not cancel schedule; photo not removed', 'error');
+        return;
+      }
+    } catch (e) {
+      showToast('Network error; photo not removed', 'error');
+      return;
+    }
+  }
+
+  const prevIndex = filmstripPhotos().findIndex(p => p.id === photo.id);
+  hiddenFromFilmstrip.add(photo.id);
+  saveHidden();
+  await loadPhotos();
+  if (photo.id === currentPhotoId) selectAdjacent(prevIndex);
+  showToast('Removed from filmstrip. Still available in Library.', 'info');
 }
 
 // After the photo list changes, select the photo at the same filmstrip position
@@ -477,10 +526,10 @@ function updateFilmstripActive(activeId) {
   if (!container) return;
   container.querySelectorAll('div[data-id]').forEach((el) => {
     if (el.dataset.id === String(activeId)) {
-      el.className = 'flex-shrink-0 w-20 h-20 rounded-md border border-accent ring-2 ring-accent/30 overflow-hidden relative cursor-pointer transition';
+      el.className = 'flex-shrink-0 w-20 h-20 rounded-md border border-accent ring-2 ring-accent/30 overflow-hidden relative cursor-pointer group transition';
       el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     } else {
-      el.className = 'flex-shrink-0 w-20 h-20 rounded-md border border-line hover:border-muted overflow-hidden relative cursor-pointer transition';
+      el.className = 'flex-shrink-0 w-20 h-20 rounded-md border border-line hover:border-muted overflow-hidden relative cursor-pointer group transition';
     }
   });
 }
@@ -617,6 +666,11 @@ function renderLibraryGrid() {
     imgWrap.appendChild(statusPill);
 
     imgWrap.addEventListener('click', () => {
+      // Opening a removed photo in Studio puts it back in the filmstrip
+      if (hiddenFromFilmstrip.delete(photo.id)) {
+        saveHidden();
+        renderFilmstrip();
+      }
       renderPhoto(photo);
       switchView('scheduler');
     });
