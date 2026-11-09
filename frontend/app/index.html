@@ -281,7 +281,10 @@
             <!-- Caption input -->
             <div>
               <div class="flex items-center justify-between text-xs mb-1">
-                <label for="caption" class="text-muted font-medium">Story Caption</label>
+                <div class="flex items-center gap-2">
+                  <label for="caption" class="text-muted font-medium">Story Caption</label>
+                  <span id="caption-save-status" class="text-[10px] font-mono text-muted"></span>
+                </div>
                 <span class="font-mono text-[11px] text-muted" id="char-count-wrap"><span id="char-count">0</span> / 1024</span>
               </div>
               <textarea id="caption" rows="3" placeholder="Tell the story of this frame..." class="w-full rounded-md border border-line bg-bg px-3 py-2 font-mono text-sm text-fg placeholder:text-muted focus:border-accent transition resize-none"></textarea>

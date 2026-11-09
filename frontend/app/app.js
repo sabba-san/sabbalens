@@ -26,6 +26,99 @@ function saveHidden() {
   localStorage.setItem(HIDDEN_KEY, JSON.stringify(Array.from(hiddenFromFilmstrip)));
 }
 
+/* ================================================================
+   PER-PHOTO STORY CAPTION AUTO-SAVE
+   ================================================================ */
+
+let captionSaveTimeout = null;
+let pendingCaptionSave = null;
+let statusClearTimer = null;
+
+function showCaptionSaveStatus(state) {
+  const el = document.getElementById('caption-save-status');
+  if (!el) return;
+  if (statusClearTimer) clearTimeout(statusClearTimer);
+
+  if (state === 'saving') {
+    el.className = 'text-[10px] font-mono text-muted animate-pulse';
+    el.textContent = 'saving...';
+  } else if (state === 'saved') {
+    el.className = 'text-[10px] font-mono text-ok inline-flex items-center gap-0.5';
+    el.innerHTML = '<span class="material-symbols-outlined text-[12px]">check</span><span>saved</span>';
+    statusClearTimer = setTimeout(() => {
+      el.textContent = '';
+    }, 2000);
+  } else if (state === 'error') {
+    el.className = 'text-[10px] font-mono text-err';
+    el.textContent = 'save error';
+  } else {
+    el.textContent = '';
+  }
+}
+
+function updateFilmstripCaptionBadge(photoId, hasCaption) {
+  const container = document.getElementById('photo-filmstrip');
+  if (!container) return;
+  const card = container.querySelector(`div[data-id="${photoId}"]`);
+  if (!card) return;
+  let badge = card.querySelector('.filmstrip-caption-badge');
+  if (hasCaption) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'filmstrip-caption-badge absolute bottom-1 right-1 w-4 h-4 rounded-full bg-bg/90 border border-line text-accent flex items-center justify-center shadow pointer-events-none';
+      badge.title = 'Story caption added';
+      badge.innerHTML = '<span class="material-symbols-outlined text-[11px]">chat</span>';
+      card.appendChild(badge);
+    }
+  } else if (badge) {
+    badge.remove();
+  }
+}
+
+async function flushPendingCaptionSave() {
+  if (captionSaveTimeout) {
+    clearTimeout(captionSaveTimeout);
+    captionSaveTimeout = null;
+  }
+  if (!pendingCaptionSave) return;
+
+  const { photoId, caption } = pendingCaptionSave;
+  pendingCaptionSave = null;
+
+  try {
+    const res = await fetch(`${API_BASE}/photos/${photoId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ caption }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      const match = allPhotos.find(p => p.id === photoId);
+      if (match) match.caption = updated.caption;
+      if (currentPhoto && currentPhoto.id === photoId) {
+        currentPhoto.caption = updated.caption;
+      }
+      showCaptionSaveStatus('saved');
+      updateFilmstripCaptionBadge(photoId, Boolean(updated.caption && updated.caption.trim()));
+    } else {
+      showCaptionSaveStatus('error');
+    }
+  } catch (e) {
+    console.error('Failed to auto-save story caption', e);
+    showCaptionSaveStatus('error');
+  }
+}
+
+function queueCaptionSave(photoId, caption) {
+  pendingCaptionSave = { photoId, caption };
+  showCaptionSaveStatus('saving');
+
+  if (captionSaveTimeout) clearTimeout(captionSaveTimeout);
+  captionSaveTimeout = setTimeout(() => {
+    flushPendingCaptionSave();
+  }, 450);
+}
+
 const CAPTION_MAX = 1024;
 const TOAST_DURATION_MS = 4000;
 
@@ -269,6 +362,10 @@ function updateTelegramSimulator() {
 
 function renderPhoto(photo) {
   if (!photo) return;
+  if (pendingCaptionSave && pendingCaptionSave.photoId !== photo.id) {
+    flushPendingCaptionSave();
+  }
+  showCaptionSaveStatus('');
   currentPhotoId = photo.id;
   currentPhoto = photo;
   document.title = 'Sabbalens — ' + photo.filename;
@@ -437,6 +534,15 @@ function renderFilmstrip() {
     dot.className = `absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${dotClasses(photo.status)} shadow`;
     card.appendChild(dot);
 
+    // Story caption indicator
+    if (photo.caption && photo.caption.trim()) {
+      const capBadge = document.createElement('span');
+      capBadge.className = 'filmstrip-caption-badge absolute bottom-1 right-1 w-4 h-4 rounded-full bg-bg/90 border border-line text-accent flex items-center justify-center shadow pointer-events-none';
+      capBadge.title = 'Story caption added';
+      capBadge.innerHTML = '<span class="material-symbols-outlined text-[11px]">chat</span>';
+      card.appendChild(capBadge);
+    }
+
     // Remove-from-filmstrip button (no post, no delete)
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -450,7 +556,8 @@ function renderFilmstrip() {
     });
     card.appendChild(removeBtn);
 
-    card.addEventListener('click', () => {
+    card.addEventListener('click', async () => {
+      await flushPendingCaptionSave();
       renderPhoto(photo);
     });
 
@@ -504,6 +611,9 @@ function selectAdjacent(prevIndex) {
 }
 
 function resetStage() {
+  if (captionSaveTimeout) { clearTimeout(captionSaveTimeout); captionSaveTimeout = null; }
+  pendingCaptionSave = null;
+  showCaptionSaveStatus('');
   currentPhotoId = null;
   currentPhoto = null;
   document.title = 'Sabbalens - Scheduler';
@@ -665,7 +775,8 @@ function renderLibraryGrid() {
     statusPill.textContent = photo.status;
     imgWrap.appendChild(statusPill);
 
-    imgWrap.addEventListener('click', () => {
+    imgWrap.addEventListener('click', async () => {
+      await flushPendingCaptionSave();
       // Opening a removed photo in Studio puts it back in the filmstrip
       if (hiddenFromFilmstrip.delete(photo.id)) {
         saveHidden();
@@ -719,18 +830,19 @@ async function publishNow() {
     showToast('Select a photo first', 'error');
     return;
   }
+  await flushPendingCaptionSave();
 
   const btn = document.getElementById('publish-now-btn');
   if (btn) btn.disabled = true;
 
-  const finalCaption = assembleTelegramCaption(currentPhoto);
+  const storyCaption = (document.getElementById('caption')?.value || '').trim();
 
   try {
     const res = await fetch(`${API_BASE}/photos/${currentPhotoId}/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        caption: finalCaption,
+        caption: storyCaption,
         destinations: 'telegram',
       }),
     });
@@ -766,6 +878,7 @@ async function schedulePost() {
     showToast('Select a photo first', 'error');
     return;
   }
+  await flushPendingCaptionSave();
 
   const dateVal = document.getElementById('schedule-date').value;
   const timeVal = document.getElementById('schedule-time').value;
@@ -776,14 +889,14 @@ async function schedulePost() {
   }
 
   const isoString = `${dateVal}T${timeVal}:00Z`;
-  const finalCaption = assembleTelegramCaption(currentPhoto);
+  const storyCaption = (document.getElementById('caption')?.value || '').trim();
 
   try {
     const res = await fetch(`${API_BASE}/photos/${currentPhotoId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        caption: finalCaption,
+        caption: storyCaption,
         destinations: 'telegram',
         status: 'scheduled',
         scheduled_at: isoString,
@@ -831,6 +944,8 @@ async function cancelSchedule() {
 
 async function deleteCurrentPhoto() {
   if (!currentPhoto) return;
+  if (captionSaveTimeout) { clearTimeout(captionSaveTimeout); captionSaveTimeout = null; }
+  pendingCaptionSave = null;
   if (!confirm(`Delete "${currentPhoto.filename}" permanently? This removes the photo and its stored file.`)) return;
   const prevIndex = filmstripPhotos().findIndex(p => p.id === currentPhotoId);
   try {
@@ -979,6 +1094,7 @@ async function loadSettings() {
    ================================================================ */
 
 function switchView(viewName) {
+  flushPendingCaptionSave();
   document.querySelectorAll('header nav button').forEach(btn => {
     const isActive = btn.dataset.view === viewName;
     btn.classList.toggle('active', isActive);
@@ -1059,7 +1175,21 @@ function setupEventListeners() {
   // Caption inputs & metadata toggles
   const captionInput = document.getElementById('caption');
   if (captionInput) {
-    captionInput.addEventListener('input', () => updateTelegramSimulator());
+    captionInput.addEventListener('input', () => {
+      if (!currentPhotoId) return;
+      const val = captionInput.value;
+      if (currentPhoto) currentPhoto.caption = val;
+      const p = allPhotos.find(item => item.id === currentPhotoId);
+      if (p) p.caption = val;
+
+      updateTelegramSimulator();
+      updateFilmstripCaptionBadge(currentPhotoId, Boolean(val && val.trim()));
+      queueCaptionSave(currentPhotoId, val);
+    });
+
+    captionInput.addEventListener('blur', () => {
+      flushPendingCaptionSave();
+    });
   }
 
   ['toggle-location', 'toggle-camera', 'toggle-settings'].forEach(id => {
@@ -1263,9 +1393,10 @@ function setupEventListeners() {
   }
 }
 
-function stepPhoto(direction) {
+async function stepPhoto(direction) {
   const list = filmstripPhotos();
   if (!list.length) return;
+  await flushPendingCaptionSave();
   const currentIndex = list.findIndex(p => p.id === currentPhotoId);
   let nextIndex = currentIndex + direction;
   if (nextIndex < 0) nextIndex = list.length - 1;
