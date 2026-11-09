@@ -1,238 +1,163 @@
-# Sabbalens — Geo-Aware Photo Pipeline
+# Sabbalens — Geo-Aware Photo Pipeline & Telegram Publisher
 
-**Automated photo scheduling pipeline that extracts EXIF GPS data, converts coordinates to human-readable locations, and schedules social media posts.**
-
----
-
-## Overview
-
-Sabbalens is a FastAPI-based backend service that:
-
-1. **Uploads photos** — Accepts multipart image uploads via REST API
-2. **Extracts EXIF GPS** — Parses binary EXIF tags using `exifread` to get latitude/longitude
-3. **Reverse geocodes** — Queries Nominatim (OpenStreetMap) to convert coordinates → city/state/country
-4. **Persists locally** — Saves image files to disk and metadata to SQLite via SQLAlchemy
-5. **Serves assets** — Static file serving for uploaded images
-6. **Exposes CRUD API** — List, get, update (caption/status/schedule), delete photos
-
-Built for deployment behind **Cloudflare Zero Trust Tunnel** (`api.sabbalens.me` → `localhost:8000` in WSL2).
+**Precision developer-grade photography workstation and automated publishing pipeline that extracts EXIF GPS and camera telemetry, resolves coordinates to human-readable locations, and streams scheduled posts to Telegram.**
 
 ---
 
-## Architecture
+## 📸 Overview
+
+Sabbalens is a fullstack FastAPI and static web application that provides:
+
+1. **Parallel Ingestion** — Accepts RAW (ARW, CR3, DNG) and JPEG/PNG uploads via multipart REST API.
+2. **Binary EXIF Extraction** — Parses binary tags using Pillow & `exifread` for camera body, lens, focal length, aperture, shutter speed, and ISO.
+3. **Reverse Geocoding** — Converts latitude/longitude to structured city/state/country names via Nominatim (OpenStreetMap).
+4. **Studio Staging Workstation (`/app`)** — Viewfinder with focus-peaking reticle brackets (`#FF2B2B`), Leaflet OpenStreetMap preview, live WYSIWYG Telegram message simulator, multi-asset filmstrip, and staggered bulk scheduling.
+5. **Interactive Landing Page (`/`)** — High-converting dark-mode interface with live server telemetry, interactive sample asset switcher, and architecture walkthrough.
+6. **Telegram Bot Dispatcher** — Streams photos and formatted HTML captions directly to Telegram channels or groups (`@sabbalensbot`) using outbound multipart requests (zero Cloudflare tunnels required).
+7. **Dual-Engine Database** — Runs seamlessly on local SQLite or containerized PostgreSQL with self-healing schema auto-migrations.
+8. **FigCraft Design System** — Master design file (`sabbalens_design.figcraft`) with 4 complete artboards (Landing, Studio, Library, Settings) and component tokens.
+
+---
+
+## 🏗️ Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Client    │────▶│  FastAPI    │────▶│  SQLite     │
-│  (Browser/  │     │  /api/v1/   │     │  (sabbalens │
-│   CLI/curl) │     │  photos     │     │   .db)      │
-└─────────────┘     └──────┬──────┘     └─────────────┘
-                           │
-                    ┌──────▼──────┐     ┌─────────────┐
-                    │  Local FS   │     │  Nominatim  │
-                    │  ./uploads  │     │  (geopy)    │
-                    └─────────────┘     └─────────────┘
-```
-
-**Layered structure:**
-```
-app/
-├── main.py              # FastAPI app + lifespan (DB init, static mount)
-├── core/
-│   ├── config.py        # Pydantic Settings (.env)
-│   └── database.py      # SQLAlchemy engine, SessionLocal, Base
-├── models/
-│   └── photo.py         # Photo model (id, file_path, lat/lon, location, status, caption, scheduled_at...)
-├── schemas/
-│   └── photo.py         # Pydantic models (PhotoCreate, PhotoRead, PhotoUpdate, BatchUploadRequest)
-├── services/
-│   ├── exif.py          # extract_gps(bytes) → (lat, lon) | None
-│   ├── geocoding.py     # get_location_name(lat, lon) → str (rate-limited)
-│   └── storage.py       # LocalStorage + StorageProtocol (swappable for S3/R2)
-├── api/
-│   ├── deps.py          # FastAPI dependencies (DB, storage, validation)
-│   └── v1/
-│       ├── router.py    # APIRouter prefix="/api/v1"
-│       └── photos.py    # POST/GET/PATCH/DELETE /photos
-└── tasks/
-    └── __init__.py      # (Future: APScheduler publisher)
+┌─────────────────────────────────┐
+│       Clients & Browsers        │
+│  - Landing Page: /              │
+│  - Studio Workstation: /app     │
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌────────────────────────────────────────────────────────┐
+│                   FastAPI Service                      │
+│  /api/v1/photos   /api/v1/telegram   /health           │
+└───────┬───────────────────────────────┬────────────────┘
+        │                               │
+        ▼                               ▼
+┌──────────────┐                ┌──────────────┐
+│  Nominatim   │                │   Database   │
+│ (OSM Geocode)│                │ (PG / SQLite)│
+└──────────────┘                └───────┬──────┘
+                                        │
+                                        ▼
+                                ┌──────────────┐
+                                │ APScheduler  │
+                                └───────┬──────┘
+                                        │ (Direct Multipart)
+                                        ▼
+                                ┌──────────────┐
+                                │ Telegram API │
+                                │@sabbalensbot │
+                                └──────────────┘
 ```
 
 ---
 
-## API Endpoints
+## 📁 Repository Structure
+
+```
+sabbalens/
+├── app/                        # FastAPI Backend Application
+│   ├── api/                    # REST API routes (photos, telegram, social)
+│   ├── core/                   # Settings, DB engine, auto-migration hooks
+│   ├── models/                 # SQLAlchemy models (Photo)
+│   ├── schemas/                # Pydantic schemas (PhotoRead, PhotoUpdate, BulkSchedule)
+│   ├── services/               # EXIF, geocoding, Telegram client, transcode
+│   ├── tasks/                  # APScheduler background publisher worker
+│   └── main.py                 # FastAPI application with unified frontend mounts
+├── frontend/                   # Unified Web Application
+│   ├── index.html              # Modern Landing Page (served at /)
+│   ├── landing.js              # Landing page client logic & live telemetry
+│   └── app/                    # Studio Staging Workstation (served at /app)
+│       ├── index.html          # Reticle stage, Leaflet OSM, filmstrip, Telegram simulator
+│       └── app.js              # Reactive state, keyboard navigation (J/K, ⌘↵)
+├── tests/                      # Automated Test Suite (30 passing tests)
+│   ├── conftest.py             # Test isolation & offline simulation fixtures
+│   ├── test_photos.py          # CRUD & bulk scheduling tests
+│   └── test_telegram.py        # Telegram formatting & dispatch tests
+├── data/                       # Local SQLite & Upload disk storage (.gitignored)
+├── Dockerfile                  # Production container build
+├── docker-compose.yml          # Local containerized PostgreSQL + app
+├── sabbalens_design.figcraft   # Master FigCraft design system
+├── PRD.md                      # Core product requirements document
+├── UI_UX_PRD.md                # Studio UI/UX requirements document
+├── DESIGN.md                   # Brand visual identity & design tokens
+├── OVERVIEW.md                 # System overview and architecture
+└── requirements.txt            # Production Python dependencies
+```
+
+---
+
+## 🚀 Quickstart
+
+### 1. Local Development (Virtual Environment)
+
+```bash
+# Create and activate virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt -r requirements-dev.txt
+
+# Configure environment
+cp .env.example .env
+
+# Run FastAPI server
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+* **Landing Page**: [http://localhost:8000/](http://localhost:8000/)
+* **Studio Workstation**: [http://localhost:8000/app/](http://localhost:8000/app/)
+* **Interactive API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### 2. Docker Compose (Full PostgreSQL Stack)
+
+```bash
+docker compose up -d --build
+```
+
+---
+
+## 🧪 Running Tests
+
+```bash
+PYTHONPATH=. .venv/bin/pytest tests/
+```
+
+All 30 unit and integration tests run offline using isolated mock fixtures.
+
+---
+
+## 🔌 API Summary
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Health check |
-| `POST` | `/api/v1/photos/upload` | Upload photo (multipart `file`) → returns `PhotoRead` |
-| `GET` | `/api/v1/photos` | List photos (query: `status`, `limit`, `offset`) |
-| `GET` | `/api/v1/photos/{id}` | Get single photo |
-| `PATCH` | `/api/v1/photos/{id}` | Update caption, status, scheduled_at |
-| `DELETE` | `/api/v1/photos/{id}` | Delete photo |
-| `GET` | `/uploads/{filename}` | Serve uploaded image (static) |
-
-### Upload Response (201)
-
-```json
-{
-  "id": 1,
-  "filename": "DSC00234.jpg",
-  "file_path": "uploads/a1b2c3d4.jpg",
-  "latitude": 37.7749,
-  "longitude": -122.4194,
-  "location_name": "San Francisco",
-  "caption": null,
-  "status": "draft",
-  "scheduled_at": null,
-  "published_at": null,
-  "instagram_media_id": null,
-  "created_at": "2026-09-27T13:52:57"
-}
-```
-
-### Photo Status Enum
-
-| Value | Meaning |
-|-------|---------|
-| `draft` | Uploaded, not scheduled |
-| `scheduled` | Queued for publishing at `scheduled_at` |
-| `published` | Successfully posted to Instagram |
-| `failed` | Publish attempt failed |
+|---|---|---|
+| `GET` | `/health` | Health check endpoint |
+| `POST` | `/api/v1/photos/upload` | Ingest photo, parse EXIF, reverse-geocode |
+| `GET` | `/api/v1/photos` | List photos with optional status filter |
+| `GET` | `/api/v1/photos/{id}` | Retrieve single photo details |
+| `PATCH` | `/api/v1/photos/{id}` | Update caption, status, or scheduled time |
+| `DELETE` | `/api/v1/photos/{id}` | Delete photo and remove disk asset |
+| `POST` | `/api/v1/photos/{id}/publish` | Instant dispatch photo to Telegram |
+| `POST` | `/api/v1/photos/bulk-schedule` | Automatically stagger schedule multiple photos |
+| `GET` | `/api/v1/telegram/status` | Real-time bot health & round-trip ping latency |
+| `POST` | `/api/v1/telegram/test` | Dispatch diagnostic test ping to group |
 
 ---
 
-## Quick Start
+## ⌨️ Global Studio Shortcuts
 
-### Prerequisites
-
-- Python 3.12+
-- WSL2 (Ubuntu) or Linux/macOS
-
-The application does not require an MCP server. MCP servers are editor/assistant integrations and are unrelated to this FastAPI service.
-
-### Install
-
-```bash
-git clone <repo-url>
-cd sabbalens_project
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env  # edit if needed
-```
-
-### Run
-
-```bash
-python3 main.py
-# → http://localhost:8000
-# → http://localhost:8000/docs (Swagger UI)
-```
-
-The browser interface is available at `http://localhost:8000/app/`.
-
-### Run with Docker
-
-Prerequisites:
-
-- Docker Engine or Docker Desktop with Compose enabled
-
-Start the service from the project directory:
-
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-Open these URLs after the container starts:
-
-- Browser interface: `http://localhost:8000/app/`
-- API documentation: `http://localhost:8000/docs`
-- Health check: `http://localhost:8000/health`
-
-SQLite data and uploaded photos are persisted in the local `data/` directory. Stop the service with `docker compose down`; the data remains available for the next start.
-
-### Test Upload
-
-```bash
-# Create a test image with GPS EXIF (requires piexif + Pillow)
-python3 -c "
-import piexif
-from PIL import Image
-img = Image.new('RGB', (400, 300), color='blue')
-lat, lon = 37.7749, -122.4194
-def dms(d):
-    d = abs(d); return [(int(d),1), (int((d-int(d))*60),1), (int(((d-int(d))*60-int((d-int(d))*60))*60*10000),10000)]
-exif = {'GPS': {piexif.GPSIFD.GPSLatitudeRef: 'N' if lat>=0 else 'S', piexif.GPSIFD.GPSLatitude: dms(lat), piexif.GPSIFD.GPSLongitudeRef: 'E' if lon>=0 else 'W', piexif.GPSIFD.GPSLongitude: dms(lon)}}
-img.save('/tmp/test.jpg', exif=piexif.dump(exif))
-"
-
-curl -X POST http://localhost:8000/api/v1/photos/upload -F "file=@/tmp/test.jpg"
-```
+| Key | Action |
+|---|---|
+| `J` / `K` or `←` / `→` | Step through photos in the working filmstrip |
+| `⌘ + Enter` / `Ctrl + Enter` | Instantly dispatch active photo to Telegram |
+| `I` | Open native file picker |
+| `Esc` | Clear multi-selection or close modal dialogs |
 
 ---
 
-## Configuration (`.env`)
-
-```bash
-APP_NAME=Sabbalens API
-DEBUG=true
-DATABASE_URL=postgresql+psycopg://sabbalens:sabbalens@localhost:5432/sabbalens
-# SQLite fallback: DATABASE_URL=sqlite:///./sabbalens.db
-UPLOAD_DIR=./uploads
-MAX_FILE_SIZE=10485760
-NOMINATIM_USER_AGENT=sabbalens_photo_scheduler
-NOMINATIM_RATE_LIMIT=1.0
-
-# Telegram Bot Publishing
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
-TELEGRAM_CHAT_ID=@my_photo_channel
-TELEGRAM_PARSE_MODE=HTML
-SIMULATE_SOCIAL_PUBLISH=true
-
-# Legacy Instagram (Optional)
-INSTAGRAM_APP_ID=
-INSTAGRAM_APP_SECRET=
-INSTAGRAM_ACCESS_TOKEN=
-INSTAGRAM_BUSINESS_ACCOUNT_ID=
-```
-
----
-
-## Design System
-
-See [`DESIGN.md`](DESIGN.md) — complete design tokens, components, patterns, and governance.
-
-**Visual mode:** Dark Developer / Builder  
-**Palette:** `#09090B` (bg) / `#18181B` (surface) / `#FAFAFA` (fg) / `#FF2B2B` (focus peaking accent)  
-**Typography:** Satoshi/Geist + JetBrains Mono only
-
----
-
-## Roadmap (Post-MVP)
-
-| Phase | Feature | Files |
-|-------|---------|-------|
-| **A** | Scheduler | `app/services/scheduler.py`, `app/tasks/publisher.py`, lifespan integration |
-| **B** | Instagram Graph API | `app/services/social.py`, extend `publisher.py` |
-| **C** | Storage Abstraction | `S3Storage` / `R2Storage` implementing `StorageProtocol` |
-| **D** | Batch Upload | `POST /api/v1/photos/batch` |
-
----
-
-## Deployment
-
-**Current:** Cloudflare Zero Trust Named Tunnel → `localhost:8000` in WSL2  
-**Domain:** `api.sabbalens.me` (DNS via Cloudflare)
-
-```bash
-# Production (systemd / supervisor)
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
----
-
-## License
+## 📄 License
 
 MIT

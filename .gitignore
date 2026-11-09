@@ -49,3 +49,5 @@ dmypy.json
 
 # Codegraph
 .codegraph/
+# Local Agent Skills
+.agents/

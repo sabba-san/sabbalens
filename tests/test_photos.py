@@ -337,10 +337,13 @@ class TestFrontendMounts:
         assert v2_resp.status_code == 200
         assert "photo-filmstrip" in v2_resp.text
 
+        root_resp = await client.get("/")
+        assert root_resp.status_code == 200
+        assert "Sabbalens" in root_resp.text
+        assert "landing.js" in root_resp.text
+
         v1_resp = await client.get("/v1/")
-        assert v1_resp.status_code == 200
-        assert "styles.css" in v1_resp.text
-        assert "photo-filmstrip" not in v1_resp.text
+        assert v1_resp.status_code == 404
 
 
 class TestBulkSchedule:

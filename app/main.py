@@ -38,23 +38,12 @@ def health():
     return {"status": "ok"}
 
 
-# Main scheduler app at /app/ (V2 primary)
-app_dir_v2 = Path(__file__).parent.parent / "frontend_v2"
-app.mount("/app", StaticFiles(directory=app_dir_v2, html=True), name="frontend")
-
-# /v2/ alias pointing to V2
-app.mount("/v2", StaticFiles(directory=app_dir_v2, html=True), name="frontend_v2")
-
-# Legacy v1 backup at /v1/
-app_dir_v1 = Path(__file__).parent.parent / "frontend_v1"
-app.mount("/v1", StaticFiles(directory=app_dir_v1, html=True), name="frontend_v1")
-
-# Landing preview at /preview/ (parallel deployment — v2 testing only)
-preview_dir = Path(__file__).parent.parent / "frontend_landing_v2"
-app.mount("/preview", StaticFiles(directory=preview_dir, html=True), name="landing_preview")
+# Studio Workstation at /app (and /v2 alias)
+frontend_dir = Path(__file__).parent.parent / "frontend"
+app.mount("/app", StaticFiles(directory=frontend_dir / "app", html=True), name="studio")
+app.mount("/v2", StaticFiles(directory=frontend_dir / "app", html=True), name="studio_v2")
 
 # Landing page at root (/)
 # NOTE: Must be registered LAST. A mount at "/" matches every path, so any
 # route registered after it (API, /health, /app) would be unreachable.
-landing_dir = Path(__file__).parent.parent / "frontend_landing"
-app.mount("/", StaticFiles(directory=landing_dir, html=True), name="landing")
+app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="landing")
