@@ -17,6 +17,7 @@ let allPhotos = [];
 let selectedPhotoIds = new Set();
 let mapInstance = null;
 let mapMarker = null;
+let showPublishedInFilmstrip = false;
 
 const CAPTION_MAX = 1024;
 const TOAST_DURATION_MS = 4000;
@@ -279,6 +280,7 @@ function renderPhoto(photo) {
     img.style.display = 'block';
   }
   if (fileInfo) fileInfo.classList.remove('hidden');
+  document.getElementById('stage-actions')?.classList.remove('hidden');
   if (filenameEl) filenameEl.textContent = photo.filename;
 
   // Status Badge
@@ -395,10 +397,21 @@ function renderFilmstrip() {
   addTile.addEventListener('click', () => fileInput.click());
   container.appendChild(addTile);
 
-  if (countEl) countEl.textContent = `${allPhotos.length} photos`;
+  const visible = filmstripPhotos();
+  const postedCount = allPhotos.filter(p => p.status === 'published').length;
+  if (countEl) {
+    countEl.textContent = showPublishedInFilmstrip
+      ? `${visible.length} photos`
+      : `${visible.length} pending`;
+  }
+  const toggleBtn = document.getElementById('filmstrip-toggle-published');
+  if (toggleBtn) {
+    toggleBtn.textContent = showPublishedInFilmstrip ? `Hide posted (${postedCount})` : `Show posted (${postedCount})`;
+    toggleBtn.setAttribute('aria-pressed', String(showPublishedInFilmstrip));
+  }
 
   // Render thumbnails
-  allPhotos.forEach((photo) => {
+  visible.forEach((photo) => {
     const card = document.createElement('div');
     card.dataset.id = photo.id;
     const isActive = photo.id === currentPhotoId;
@@ -423,6 +436,40 @@ function renderFilmstrip() {
 
     container.appendChild(card);
   });
+}
+
+function filmstripPhotos() {
+  return showPublishedInFilmstrip ? allPhotos : allPhotos.filter(p => p.status !== 'published');
+}
+
+// After the photo list changes, select the photo at the same filmstrip position
+// as `prevId` was (or the last one), or reset the stage if the queue is empty.
+function selectAdjacent(prevIndex) {
+  const list = filmstripPhotos();
+  if (!list.length) {
+    resetStage();
+    return;
+  }
+  const idx = Math.min(Math.max(prevIndex, 0), list.length - 1);
+  renderPhoto(list[idx]);
+}
+
+function resetStage() {
+  currentPhotoId = null;
+  currentPhoto = null;
+  document.title = 'Sabbalens - Scheduler';
+  const img = document.getElementById('photo-img');
+  if (img) { img.style.display = 'none'; img.src = ''; }
+  const emptyState = document.getElementById('stage-empty-state');
+  if (emptyState) emptyState.style.display = '';
+  document.getElementById('stage-file-info')?.classList.add('hidden');
+  document.getElementById('stage-actions')?.classList.add('hidden');
+  document.getElementById('scheduled-banner')?.classList.add('hidden');
+  document.getElementById('published-banner')?.classList.add('hidden');
+  setBadge(document.getElementById('photo-status'), 'draft');
+  const captionInput = document.getElementById('caption');
+  if (captionInput) captionInput.value = '';
+  updateTelegramSimulator();
 }
 
 function updateFilmstripActive(activeId) {
@@ -467,8 +514,8 @@ async function handleFilesUpload(files) {
 
   showToast(`Uploaded ${successCount} of ${files.length} photo(s).`, successCount > 0 ? 'success' : 'error');
   await loadPhotos();
-  if (allPhotos.length > 0) {
-    renderPhoto(allPhotos[0]);
+  if (filmstripPhotos().length > 0) {
+    renderPhoto(filmstripPhotos()[0]);
   }
 }
 
@@ -641,8 +688,13 @@ async function publishNow() {
     }
 
     const data = await res.json();
-    renderPhoto(data);
+    const prevIndex = filmstripPhotos().findIndex(p => p.id === currentPhotoId);
     await loadPhotos();
+    if (showPublishedInFilmstrip) {
+      renderPhoto(data);
+    } else {
+      selectAdjacent(prevIndex);
+    }
 
     const isSim = (data.telegram_message_id && data.telegram_message_id.startsWith('sim_tele_'));
     const mid = data.telegram_message_id ? `#${data.telegram_message_id}` : '';
@@ -697,6 +749,49 @@ async function schedulePost() {
   } catch (e) {
     console.error('Schedule error', e);
     showToast('Network error while scheduling', 'error');
+  }
+}
+
+async function cancelSchedule() {
+  if (!currentPhotoId) return;
+  try {
+    const res = await fetch(`${API_BASE}/photos/${currentPhotoId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'draft', scheduled_at: null }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      showToast(`Cancel failed: ${err.detail || 'Error'}`, 'error');
+      return;
+    }
+    const data = await res.json();
+    await loadPhotos();
+    renderPhoto(data);
+    showToast('Schedule cancelled. Photo reverted to draft.', 'success');
+  } catch (e) {
+    console.error('Cancel schedule error', e);
+    showToast('Network error while cancelling schedule', 'error');
+  }
+}
+
+async function deleteCurrentPhoto() {
+  if (!currentPhoto) return;
+  if (!confirm(`Delete "${currentPhoto.filename}" permanently? This removes the photo and its stored file.`)) return;
+  const prevIndex = filmstripPhotos().findIndex(p => p.id === currentPhotoId);
+  try {
+    const res = await fetch(`${API_BASE}/photos/${currentPhotoId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      showToast('Delete failed', 'error');
+      return;
+    }
+    selectedPhotoIds.delete(currentPhotoId);
+    await loadPhotos();
+    selectAdjacent(prevIndex);
+    showToast('Photo deleted successfully.', 'info');
+  } catch (e) {
+    console.error('Delete error', e);
+    showToast('Network error while deleting', 'error');
   }
 }
 
@@ -926,6 +1021,12 @@ function setupEventListeners() {
   // Actions
   document.getElementById('publish-now-btn')?.addEventListener('click', publishNow);
   document.getElementById('schedule-btn')?.addEventListener('click', schedulePost);
+  document.getElementById('cancel-schedule-btn')?.addEventListener('click', cancelSchedule);
+  document.getElementById('delete-photo-btn')?.addEventListener('click', deleteCurrentPhoto);
+  document.getElementById('filmstrip-toggle-published')?.addEventListener('click', () => {
+    showPublishedInFilmstrip = !showPublishedInFilmstrip;
+    renderFilmstrip();
+  });
 
   // Library Search & Filter chips
   document.getElementById('library-search')?.addEventListener('input', () => renderLibraryGrid());
@@ -1109,12 +1210,13 @@ function setupEventListeners() {
 }
 
 function stepPhoto(direction) {
-  if (!allPhotos.length) return;
-  const currentIndex = allPhotos.findIndex(p => p.id === currentPhotoId);
+  const list = filmstripPhotos();
+  if (!list.length) return;
+  const currentIndex = list.findIndex(p => p.id === currentPhotoId);
   let nextIndex = currentIndex + direction;
-  if (nextIndex < 0) nextIndex = allPhotos.length - 1;
-  if (nextIndex >= allPhotos.length) nextIndex = 0;
-  renderPhoto(allPhotos[nextIndex]);
+  if (nextIndex < 0) nextIndex = list.length - 1;
+  if (nextIndex >= list.length) nextIndex = 0;
+  renderPhoto(list[nextIndex]);
 }
 
 /* ================================================================
@@ -1126,8 +1228,8 @@ async function init() {
   await loadPhotos();
   await loadSocialStatus();
 
-  if (allPhotos.length > 0) {
-    renderPhoto(allPhotos[0]);
+  if (filmstripPhotos().length > 0) {
+    renderPhoto(filmstripPhotos()[0]);
   }
 }
 

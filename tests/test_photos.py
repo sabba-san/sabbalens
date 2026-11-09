@@ -132,6 +132,29 @@ class TestPhotoCRUD:
         assert data["scheduled_at"] is not None
 
     @pytest.mark.asyncio
+    async def test_cancel_photo_schedule(self, client: AsyncClient):
+        image_bytes = create_test_image_with_gps()
+        files = {"file": ("test.jpg", image_bytes, "image/jpeg")}
+        upload_resp = await client.post("/api/v1/photos/upload", files=files)
+        photo_id = upload_resp.json()["id"]
+
+        await client.patch(
+            f"/api/v1/photos/{photo_id}",
+            json={"status": "scheduled", "scheduled_at": "2099-12-31T23:59:00Z"},
+        )
+
+        # Cancel: revert to draft and clear schedule
+        cancel_resp = await client.patch(
+            f"/api/v1/photos/{photo_id}",
+            json={"status": "draft", "scheduled_at": None},
+        )
+
+        assert cancel_resp.status_code == 200
+        data = cancel_resp.json()
+        assert data["status"] == "draft"
+        assert data["scheduled_at"] is None
+
+    @pytest.mark.asyncio
     async def test_patch_manual_metadata_overrides(self, client: AsyncClient):
         image_bytes = create_test_image_with_gps()
         files = {"file": ("test_meta.jpg", image_bytes, "image/jpeg")}
